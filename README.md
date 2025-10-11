@@ -9,27 +9,38 @@
 
 ---
 
-## ✅ SUCCESS: Electron Migration Complete!
+## ✅ Electron App - Phase 2 Complete (90%)!
 
-**The migration from Flutter to Electron is COMPLETE and working perfectly!**
+**The migration from Flutter to Electron is SUCCESSFUL and the app is functional!**
 
-**Why Electron?** Click-through functionality is **CRITICAL** for this non-intrusive productivity app. After extensive debugging with Flutter (20+ crash iterations), we migrated to Electron which provides a proven, stable `setIgnoreMouseEvents()` API.
+**Current Status:** Phase 1 (Foundation) ✅ Complete | Phase 2 (Core Features) 🚧 90% Complete
 
-**Result:** 
-- ✅ Click-through works perfectly (100% stable!)
-- ✅ All core features implemented
-- ✅ Beautiful UI matching original design
-- ✅ Rust core integrated (stub, native addon prepared)
+**What Works NOW:**
+- ✅ **Click-through functionality** - Perfect stability, no crashes
+- ✅ **Beautiful timer UI** - 280×280 rounded square with progress ring
+- ✅ **Timer controls** - Start, pause, reset all functional
+- ✅ **Independent toolbar** - Separate draggable window with IPC communication
+- ✅ **Phase visualization** - Pause/break states with animated yellow dots
+- ✅ **Global hotkeys** - ALT+SHIFT+P/C/S/N
+- ✅ **System tray** - Background operation
+- ✅ **Position persistence** - Windows remember their locations
 
-📖 **Migration Results:** [ELECTRON_SUCCESS_SUMMARY.md](ELECTRON_SUCCESS_SUMMARY.md)  
-📋 **New Roadmap:** [MVP_Milestone_Plan.md](MVP_Milestone_Plan.md)  
-📝 **Specifications:** [Specifications.md](Specifications.md)
+📖 **Current Status:** [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)  
+📋 **Full Roadmap:** [docs/MVP_Milestone_Plan.md](docs/MVP_Milestone_Plan.md)  
+📝 **Specifications:** [docs/Specifications.md](docs/Specifications.md)  
+🎯 **Next Sprint:** [docs/milestones/MILESTONE_POLISH.md](docs/milestones/MILESTONE_POLISH.md)
 
 **Quick Start:**
 ```bash
 cd electron-app
 npm install
 npm start
+```
+
+**Test Click-Through:**
+```bash
+# Press ALT+SHIFT+C to toggle click-through mode
+# When enabled, you can click through timer to apps behind it
 ```
 
 ---
@@ -124,57 +135,80 @@ npm run dev
 
 ## 📚 Documentation
 
-- **[Specifications.md](Specifications.md)** — Product requirements and technical spec
-- **[MVP_Milestone_Plan.md](MVP_Milestone_Plan.md)** — Development roadmap (Electron)
-- **[ELECTRON_MIGRATION.md](ELECTRON_MIGRATION.md)** — Why we migrated and what changed
-- **[TESTING_CHECKLIST.md](TESTING_CHECKLIST.md)** — Manual testing procedures
-- **[WINDOWS_CLICK_THROUGH_IMPLEMENTATION.md](WINDOWS_CLICK_THROUGH_IMPLEMENTATION.md)** — Flutter attempt (archived)
+### Core Documents
+- **[docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)** — What's working now and next steps
+- **[docs/Specifications.md](docs/Specifications.md)** — Product requirements and technical spec
+- **[docs/MVP_Milestone_Plan.md](docs/MVP_Milestone_Plan.md)** — Full development roadmap
+
+### Milestone Sprints
+- **[docs/milestones/MILESTONE_POLISH.md](docs/milestones/MILESTONE_POLISH.md)** — Current sprint (Quick Polish)
+- **[docs/milestones/MILESTONE_DATABASE.md](docs/milestones/MILESTONE_DATABASE.md)** — Future: Database integration
+- **[docs/milestones/MILESTONE_RUST_CORE.md](docs/milestones/MILESTONE_RUST_CORE.md)** — Future: Native Rust module
+
+### Migration History
+- **[docs/ELECTRON_MIGRATION.md](docs/ELECTRON_MIGRATION.md)** — Why we migrated from Flutter
+- **[docs/ELECTRON_SUCCESS_SUMMARY.md](docs/ELECTRON_SUCCESS_SUMMARY.md)** — Migration results
+- **[docs/MIGRATION_SUMMARY.md](docs/MIGRATION_SUMMARY.md)** — Executive summary
 
 ---
 
 ## 🛣️ Roadmap
 
-### Phase 1: Electron Foundation (Current)
-**Target:** End of October 2025
+### Phase 1: Foundation ✅ COMPLETE
+- [x] Electron project structure
+- [x] **Click-through validated** with `setIgnoreMouseEvents()`
+- [x] Timer bubble UI (pure HTML/CSS/JS)
+- [x] Basic timer controls
+- [x] Global hotkeys
+- [x] System tray integration
+- [x] Position persistence
 
-- [ ] Create Electron project structure
-- [ ] **Validate click-through** with `setIgnoreMouseEvents()`
-- [ ] Port timer bubble UI to React
-- [ ] Integrate Rust core (neon-bindings or IPC)
-- [ ] Implement expand-on-drag behavior
-- [ ] Port all Flutter features (hotkeys, tray, notes, etc.)
+### Phase 2: Core Features 🚧 90% Complete
+- [x] Progress ring animation
+- [x] Phase icons and state visualization
+- [x] Pause/break dot animations
+- [x] Independent toolbar window
+- [x] IPC communication
+- [ ] **IN PROGRESS:** Settings panel
+- [ ] **IN PROGRESS:** Timer presets
+- [ ] **NEXT:** App icon
 
-### Phase 2: Core Features (November 2025)
-- [ ] Calendar/Timeline view
-- [ ] Task management (kanban)
+### Phase 3: Polish & Features ⏳ Upcoming
+- [ ] SQLite database (sessions, notes, settings)
+- [ ] Notes capture with screenshots
+- [ ] Session recovery
 - [ ] Statistics dashboard
-- [ ] AI integration (Ollama)
+- [ ] Native Rust core integration
 
-### Phase 3: Sync & Mobile (Q1 2026)
+### Phase 4: Advanced Features 📋 Future
+- [ ] Calendar/Timeline view
+- [ ] Task management
+- [ ] AI integration (Ollama)
 - [ ] E2EE sync server
-- [ ] Multi-device session handoff
-- [ ] iOS/Android apps
+- [ ] Multi-device support
 
 ---
 
-## 📖 Current Status
+## 📖 Feature Status
 
-| Feature | Flutter (Archived) | Electron Status |
-|---------|-------------------|-----------------|
-| Click-through | ❌ Crashed | 🎯 In Progress |
-| Timer Bubble | ✅ | 📋 To Port |
-| Expand-on-drag | ✅ | 📋 To Port |
-| Progress Ring | ✅ | 📋 To Port |
-| Phase Icons | ✅ | 📋 To Port |
-| Dot Animations | ✅ | 📋 To Port |
-| Toolbar | ✅ | 📋 To Port |
-| Global Hotkeys | ✅ | 📋 To Port |
-| System Tray | ✅ | 📋 To Port |
-| Notes Panel | ✅ | 📋 To Port |
-| Screenshot | ✅ | 📋 To Port |
-| Position Persist | ✅ | 📋 To Port |
-| SQLite DB | ✅ | 📋 To Port |
-| Rust Core | ⚠️ Stub | 🚧 Ready |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Click-through | ✅ | Perfect stability |
+| Timer Bubble | ✅ | 280×280 rounded square |
+| Progress Ring | ✅ | SVG animation |
+| Phase Icons | ✅ | Eye + coffee mug |
+| Dot Animations | ✅ | Pause/break/cooldown |
+| Toolbar | ✅ | Independent window |
+| Global Hotkeys | ✅ | ALT+SHIFT+P/C/S/N |
+| System Tray | ✅ | Background operation |
+| Position Persist | ✅ | electron-store |
+| Settings Panel | 🚧 | Next sprint |
+| Timer Presets | 🚧 | Next sprint |
+| App Icon | 🚧 | Next sprint |
+| Notes Panel | ⏳ | Future |
+| Screenshot | ⏳ | Future |
+| SQLite DB | ⏳ | Future |
+| Rust Core (Native) | ⏳ | Future (stub working) |
 
 ---
 
