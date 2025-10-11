@@ -7,7 +7,7 @@
 body {
   width: 100vw;
   height: 100vh;
-  background: transparent;
+  background: rgb(32, 32, 32); /* Match the toolbar background */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,6 +15,9 @@ body {
   overflow: hidden;
   -webkit-user-select: none;
   user-select: none;
+  margin: 0;
+  padding: 0;
+  border-radius: 12px; /* More rounded corners to match timer */
 }
 
 .toolbar {
@@ -23,9 +26,10 @@ body {
   gap: 8px;
   padding: 8px 12px;
   background: rgb(32, 32, 32); /* Solid dark background, no transparency */
-  border-radius: 8px;
+  border-radius: 0; /* No border radius needed - body handles it */
   -webkit-app-region: drag; /* Draggable */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 100%;
 }
 
 .toolbar-btn {

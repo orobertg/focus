@@ -11,15 +11,17 @@
 body {
   width: 100vw;
   height: 100vh;
-  background: transparent;
+  background: rgb(32, 32, 32); /* Match the bubble background */
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   overflow: hidden;
   -webkit-user-select: none; /* Disable text selection */
   user-select: none;
   margin: 0;
   padding: 0;
+  border-radius: 50px; /* More rounded corners */
 }
 
 /* ============================================
@@ -28,18 +30,14 @@ body {
 
 .bubble {
   position: relative;
-  width: 280px;
-  height: 280px;
+  width: 100%;
+  height: 100%;
   background: rgb(32, 32, 32); /* Solid dark background, no transparency */
-  border-radius: 35px; /* Rounded square like Flutter */
+  border-radius: 0; /* No border radius needed - window handles it */
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.3),
-    0 4px 10px rgba(0, 0, 0, 0.2);
   -webkit-app-region: drag; /* Make bubble draggable */
-  margin: 0 auto;
 }
 
 /* ============================================
@@ -48,11 +46,11 @@ body {
 
 .progress-ring {
   position: absolute;
-  top: 25px; /* Shift down to create space at top */
-  left: 50px; /* Center horizontally with padding */
+  top: 50%;
+  left: 50%;
   width: 180px; /* Smaller to fit with buttons */
   height: 180px;
-  transform: rotate(-90deg); /* Start from top */
+  transform: translate(-50%, calc(-50% - 28px)) rotate(-90deg); /* Center, shift up 20%, and rotate */
   pointer-events: none;
 }
 
@@ -73,11 +71,10 @@ body {
 
 .timer-content {
   position: absolute;
-  /* Center within the progress ring (ring is at top:25px, left:50px, size:180x180) */
-  /* Ring center is at 50px + 90px = 140px horizontal, 25px + 90px = 115px vertical */
-  top: 115px;
-  left: 140px;
-  transform: translate(-50%, -50%); /* Centered on the ring center */
+  /* Center in the bubble, shifted up to align with progress ring */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, calc(-50% - 28px)); /* Centered and shifted up 20% */
   display: flex;
   flex-direction: column;
   align-items: center;

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark background circle -->
+  <circle cx="256" cy="256" r="256" fill="#202020"/>
+  
+  <!-- Inner dim ring (progress background) -->
+  <circle cx="256" cy="256" r="180" fill="none" stroke="rgba(255, 255, 255, 0.15)" stroke-width="20"/>
+  
+  <!-- Main yellow ring (partial, like progress) -->
+  <circle cx="256" cy="256" r="180" fill="none" 
+          stroke="#fbbf24" stroke-width="20" stroke-linecap="round"
+          stroke-dasharray="1130.97" stroke-dashoffset="282.74"
+          transform="rotate(-90 256 256)"/>
+  
+  <!-- Outer subtle glow -->
+  <circle cx="256" cy="256" r="200" fill="none" stroke="#fbbf24" stroke-width="2" opacity="0.3"/>
+  
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="16" fill="#fbbf24"/>
+</svg>

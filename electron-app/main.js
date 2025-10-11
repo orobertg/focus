@@ -42,10 +42,12 @@ function createWindow() {
     width: 280, // Just the timer
     height: 280,
     frame: false,
-    transparent: true,
+    transparent: false, // Solid window, no transparency
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: false, // Show in taskbar for now (TODO: make configurable)
+    backgroundColor: '#202020', // Match the bubble background
+    roundedCorners: true, // Enable rounded corners on Windows
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -100,10 +102,12 @@ function createToolbarWindow() {
     width: 160,
     height: 52,
     frame: false,
-    transparent: true,
+    transparent: false, // Solid window, no transparency
     alwaysOnTop: true,
     resizable: false,
     skipTaskbar: true, // Don't show toolbar in taskbar
+    backgroundColor: '#202020', // Match the toolbar background
+    roundedCorners: true, // Enable rounded corners on Windows
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
