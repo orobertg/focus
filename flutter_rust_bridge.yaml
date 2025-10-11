@@ -1,0 +1,5 @@
+rust_input: crate
+rust_root: core
+dart_output: app/lib/ffi/
+c_output: app/windows/runner/bridge_generated.h
+dart_entrypoint_class_name: FocusCore

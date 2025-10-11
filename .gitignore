@@ -1,0 +1,181 @@
+# ============================================
+# Focus Bubbles - Root .gitignore
+# ============================================
+
+# ============================================
+# Database and User Data
+# ============================================
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+focus_bubbles.db*
+app_database.db*
+
+# User preferences and position data
+*.prefs
+
+# ============================================
+# Rust Build Artifacts
+# ============================================
+**/target/
+**/*.rs.bk
+**/*.pdb
+**/*.d
+Cargo.lock
+
+# Rust FFI Generated Files
+**/frb_generated.rs
+**/frb_generated.io.dart
+**/frb_generated.web.dart
+**/frb_generated.dart
+
+# ============================================
+# Flutter/Dart Build Artifacts
+# ============================================
+**/build/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.dart_tool/
+**/pubspec.lock
+
+# Generated plugin files
+**/generated_plugin_registrant.*
+**/generated_plugins.cmake
+**/GeneratedPluginRegistrant.*
+
+# ============================================
+# Testing and Debug
+# ============================================
+**/debug_database.dart
+view_database.bat
+**/*_test_data/
+**/*_test_output/
+**/test_screenshots/
+**/test_notes/
+
+# ============================================
+# IDE and Editor
+# ============================================
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ============================================
+# Operating System
+# ============================================
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.Spotlight-V100
+.Trashes
+
+# ============================================
+# Logs and Temp Files
+# ============================================
+*.log
+*.tmp
+*.temp
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# Compiled Binaries and DLLs
+# ============================================
+*.dll
+*.exe
+*.so
+*.dylib
+*.lib
+*.exp
+
+# Keep essential DLLs in distribution folders if needed
+!**/dist/**/*.dll
+!**/release/**/*.dll
+
+# ============================================
+# Screenshots and User Content
+# ============================================
+**/screenshots/
+**/user_notes/
+**/attachments/
+**/captures/
+
+# ============================================
+# Backup and Archive Files
+# ============================================
+*.bak
+*.backup
+*.old
+*.orig
+*.save
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# ============================================
+# Package Manager
+# ============================================
+node_modules/
+.pub-cache/
+.pub/
+
+# ============================================
+# CMake and Native Build
+# ============================================
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+*.vcxproj
+*.vcxproj.filters
+*.sln
+*.stamp
+*.stamp.depend
+*.stamp.list
+*.cache.dill.track.dill
+
+# ============================================
+# Environment and Secrets
+# ============================================
+.env
+.env.local
+.env.*.local
+secrets.yaml
+*.key
+*.pem
+*.crt
+
+# ============================================
+# Documentation Build
+# ============================================
+**/doc/api/
+
+# ============================================
+# Ephemeral Flutter Files
+# ============================================
+**/ephemeral/
+**/.last_build_id
+
+# ============================================
+# Coverage
+# ============================================
+coverage/
+*.lcov
+
+# ============================================
+# Assets that may contain sensitive data
+# ============================================
+# Uncomment if you have user-uploaded icons
+# **/assets/user_*
+
