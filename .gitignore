@@ -32,6 +32,20 @@ Cargo.lock
 **/frb_generated.dart
 
 # ============================================
+# Electron Build Artifacts
+# ============================================
+electron-app/dist/
+electron-app/out/
+electron-app/node_modules/
+electron-app/native/target/
+electron-app/native/Cargo.lock
+electron-app/*.node
+
+# Electron config and cache
+electron-app/config.json
+electron-app/.electron-store
+
+# ============================================
 # Flutter/Dart Build Artifacts
 # ============================================
 **/build/

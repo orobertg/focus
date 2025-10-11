@@ -1,0 +1,25 @@
+{
+  "name": "focus-bubbles-electron",
+  "version": "0.1.0",
+  "description": "Focus Bubbles - Non-intrusive Pomodoro Timer (Electron)",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"No tests yet\" && exit 0"
+  },
+  "keywords": [
+    "pomodoro",
+    "timer",
+    "productivity",
+    "focus"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^38.2.2"
+  },
+  "dependencies": {
+    "electron-localshortcut": "^3.2.1",
+    "electron-store": "^11.0.2"
+  }
+}

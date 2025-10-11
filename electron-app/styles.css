@@ -1,0 +1,307 @@
+/* ============================================
+   Focus Bubbles - Electron Styles
+   ============================================ */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow: hidden;
+  -webkit-user-select: none; /* Disable text selection */
+  user-select: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ============================================
+   Timer Bubble Container
+   ============================================ */
+
+.bubble {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  background: rgb(32, 32, 32); /* Solid dark background, no transparency */
+  border-radius: 35px; /* Rounded square like Flutter */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 
+    0 10px 30px rgba(0, 0, 0, 0.3),
+    0 4px 10px rgba(0, 0, 0, 0.2);
+  -webkit-app-region: drag; /* Make bubble draggable */
+  margin: 0 auto;
+}
+
+/* ============================================
+   Progress Ring (SVG)
+   ============================================ */
+
+.progress-ring {
+  position: absolute;
+  top: 25px; /* Shift down to create space at top */
+  left: 50px; /* Center horizontally with padding */
+  width: 180px; /* Smaller to fit with buttons */
+  height: 180px;
+  transform: rotate(-90deg); /* Start from top */
+  pointer-events: none;
+}
+
+.progress-ring__circle {
+  stroke-dasharray: 471.24; /* 2 * π * 75 (adjusted for smaller ring) */
+  stroke-dashoffset: 471.24;
+  transition: stroke-dashoffset 0.25s ease, stroke 0.3s ease;
+  stroke-linecap: round;
+}
+
+.progress-ring__circle-bg {
+  opacity: 0.5;
+}
+
+/* ============================================
+   Timer Content (Inside Progress Ring)
+   ============================================ */
+
+.timer-content {
+  position: absolute;
+  /* Center within the progress ring (ring is at top:25px, left:50px, size:180x180) */
+  /* Ring center is at 50px + 90px = 140px horizontal, 25px + 90px = 115px vertical */
+  top: 115px;
+  left: 140px;
+  transform: translate(-50%, -50%); /* Centered on the ring center */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Phase Icon */
+.phase-icon {
+  width: 26px;
+  height: 26px;
+  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.phase-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Timer Display */
+.timer-display {
+  font-size: 43px;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Progress Dots */
+.progress-dots {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transition: background-color 0.3s ease;
+}
+
+.dot.lit {
+  background: #ef4444; /* Red for focus */
+}
+
+.dot.lit-yellow {
+  background: #fbbf24; /* Yellow for pause/break */
+}
+
+.dot.blink {
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Phase Label */
+.phase-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ============================================
+   Bottom Controls
+   ============================================ */
+
+.bottom-controls {
+  position: absolute;
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 2;
+  -webkit-app-region: no-drag;
+}
+
+/* Control Buttons */
+.control-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  -webkit-app-region: no-drag; /* Don't drag when clicking buttons */
+  pointer-events: auto;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.control-btn:active {
+  transform: translateY(0);
+}
+
+/* Small Buttons (Reset & Settings) */
+.control-btn-small {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.control-btn-small svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Primary Button (START/PAUSE) */
+.control-btn-primary {
+  width: 140px;
+  height: 48px;
+  border-radius: 24px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.control-btn-primary:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ============================================
+   Phase-Specific Colors
+   ============================================ */
+
+/* Focus Phase (Red/Orange) */
+.bubble.phase-focus .progress-ring__circle {
+  stroke: #ef4444;
+}
+
+.bubble.phase-focus .dot.lit {
+  background: #ef4444;
+}
+
+/* Break Phase (Teal) */
+.bubble.phase-break .progress-ring__circle {
+  stroke: #14b8a6;
+}
+
+.bubble.phase-break .phase-icon {
+  color: #14b8a6;
+}
+
+/* Idle/Paused Phase (Gray) */
+.bubble.phase-idle .progress-ring__circle {
+  stroke: rgba(255, 255, 255, 0.3);
+}
+
+.bubble.phase-idle .phase-icon {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* ============================================
+   Icons (SVG)
+   ============================================ */
+
+/* Eye Open (Focus) */
+.icon-eye-open {
+  /* SVG path for open eye icon */
+}
+
+/* Eye Closed (Idle/Paused) */
+.icon-eye-closed {
+  /* SVG path for closed eye icon */
+}
+
+/* Coffee Mug (Break) */
+.icon-coffee {
+  /* SVG path for coffee mug icon */
+}
+
+/* ============================================
+   Responsive & Accessibility
+   ============================================ */
+
+button:focus {
+  outline: 2px solid rgba(255, 255, 255, 0.4);
+  outline-offset: 2px;
+}
+
+/* Prevent text selection during drag */
+.bubble * {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ============================================
+   Debug Mode (DevTools Console)
+   ============================================ */
+
+body.debug-mode::before {
+  content: 'DEBUG MODE';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  font-size: 8px;
+  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 2px 6px;
+  border-radius: 3px;
+  z-index: 9999;
+}
+

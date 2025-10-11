@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Focus Bubbles</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Timer Bubble -->
+  <div class="bubble" id="timer-bubble">
+    <!-- Progress Ring -->
+    <svg class="progress-ring" width="180" height="180">
+      <circle
+        class="progress-ring__circle-bg"
+        stroke="rgba(255, 255, 255, 0.1)"
+        stroke-width="9"
+        fill="transparent"
+        r="75"
+        cx="90"
+        cy="90"
+      />
+      <circle
+        class="progress-ring__circle"
+        stroke="#ef4444"
+        stroke-width="9"
+        fill="transparent"
+        r="75"
+        cx="90"
+        cy="90"
+        id="progress-circle"
+      />
+    </svg>
+
+    <!-- Timer Content (Inside Progress Ring) -->
+    <div class="timer-content">
+      <!-- Phase Icon -->
+      <div class="phase-icon" id="phase-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13.73 4a2 2 0 00-3.46 0l-8 14A2 2 0 004 21h16a2 2 0 001.73-3z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+
+      <!-- Timer Display -->
+      <div class="timer-display" id="timer-display">25:00</div>
+
+      <!-- Progress Dots -->
+      <div class="progress-dots" id="progress-dots">
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+
+      <!-- Phase Label -->
+      <div class="phase-label" id="phase-label">FOCUS</div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div class="bottom-controls">
+      <!-- Reset/Restart Button (Left) -->
+      <button class="control-btn control-btn-small" id="reset-btn" title="Reset">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="23 4 23 10 17 10"/>
+          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+        </svg>
+      </button>
+
+      <!-- START/PAUSE Button (Center) -->
+      <button class="control-btn control-btn-primary" id="start-pause-btn">
+        START
+      </button>
+
+      <!-- Settings Button (Right) -->
+      <button class="control-btn control-btn-small" id="settings-btn" title="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M12 1v6m0 6v6m7.07-15.07l-4.24 4.24m0 5.66l4.24 4.24M23 12h-6m-6 0H1m15.07 7.07l-4.24-4.24m0-5.66l-4.24-4.24"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

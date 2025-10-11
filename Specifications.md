@@ -12,7 +12,11 @@
 
 **Key pillars:**
 
-* Non‑intrusive floating UI (always‑on‑top, draggable, resizable, minimal)
+* **Non‑intrusive floating UI with click-through** (CRITICAL: must allow user to work in other apps uninterrupted)
+  - Always‑on‑top, draggable, minimal
+  - Click-through enabled when timer is idle/running (bubble "fades to background")
+  - Click-through disabled during drag or active interaction
+  - Small floating bubble with expand-on-drag behavior
 * First‑class Pomodoro engine (Rust, monotonic clock, drift correction)
 * Fast drag‑drop to schedule tasks/events
 * Notes/screenshots capture and quick attachment to tasks
@@ -31,12 +35,23 @@
 
 ## 3) UX Requirements
 
-### 3.1 Floating Bubble
+### 3.1 Floating Bubble (with Click-Through)
 
-* Circular bubble with progress ring and time remaining.
-* Tap/click center: **Play/Pause**. Side buttons: **Skip**, **Extend +5**.
-* Drag anywhere; remembers last screen position per display.
-* Optional sizes: Small (140px), Default (180px), Large (240px). [TBD]
+**CORE REQUIREMENT:** The floating bubble MUST support click-through to enable truly non-intrusive operation. Users must be able to work in other applications without the timer bubble blocking their workflow.
+
+* Circular bubble with progress ring and time remaining
+* **Click-through behavior:**
+  - Enabled when timer is idle or running (bubble allows clicks to pass through to apps below)
+  - Disabled temporarily when user drags the bubble (expand to larger size, capture interactions)
+  - Disabled when hovering/interacting with controls (buttons become clickable)
+  - Re-enabled after ~250ms of no interaction (shrink back to small size)
+* **Expand-on-drag pattern:**
+  - Small size: 180px (click-through enabled)
+  - Large size: 340px (during drag/interaction, click-through disabled)
+  - Smooth animation between sizes
+* Tap/click center: **Play/Pause**. Side buttons: **Skip**, **Extend +5**, **Settings**
+* Drag anywhere; remembers last screen position per display
+* Snap to screen edges when dropped near edges
 
 ### 3.2 Floating Toolbar
 
@@ -87,11 +102,25 @@
 
 ## 7) Architecture
 
-* **UI:** Flutter (Material 3), Riverpod/Bloc state.
-* **Core:** Rust crate (FFI via `flutter_rust_bridge`).
-* **Persistence:** SQLite (Drift on Flutter, `rusqlite` in Rust core).
+**MIGRATION TO ELECTRON:** Due to critical requirement for reliable click-through functionality on Windows desktop, the frontend is being migrated from Flutter to Electron. This provides stable, mature APIs for window management including `setIgnoreMouseEvents()` for click-through.
+
+* **UI:** Electron + React/TypeScript (or Vue/Svelte - TBD)
+  - Chromium-based rendering
+  - Native OS window APIs via Electron
+  - HTML/CSS for UI with modern framework
+* **Core:** Rust crate (FFI via `neon-bindings` or direct IPC)
+  - Pomodoro engine logic remains in Rust for precision and reliability
+  - IPC communication between Electron main process and Rust core
+* **Persistence:** SQLite (better-sqlite3 on Node.js, `rusqlite` in Rust core)
 * **Sync (optional):** Axum server + Postgres + S3/MinIO. **E2EE**: server stores only encrypted blobs/CRDT deltas. [Phase 2]
 * **Search:** SQLite FTS5; optional vector index for AI. [Phase 2]
+
+**Architecture Benefits:**
+- Proven, stable click-through implementation (`setIgnoreMouseEvents`)
+- Rich ecosystem of npm packages for desktop features
+- Easier platform-specific window management
+- Smaller bundle size with tree-shaking
+- Simpler debugging with Chrome DevTools
 
 ---
 
@@ -179,13 +208,18 @@ Cfg   { user_id, prefs_json, hotkeys, theme, telemetry_opt_in }
 
 ## 16) Acceptance Criteria (MVP)
 
-* Start/pause/resume/skip/extend works reliably with monotonic timing and sleep/wake correction.
-* Bubble + toolbar are draggable, always‑on‑top, and persist position across restarts.
-* Presets function (25/5 & 50/10).
-* Global hotkeys operate when window is unfocused.
-* Notes capture with quick screenshot attach.
-* Local persistence (SQLite); restart recovery of an active session.
-* Unit tests: phase transitions, extend/skip behavior, sleep/wake drift.
+* **Click-through functionality works reliably** (CRITICAL)
+  - User can click through idle/running timer to interact with apps below
+  - Bubble expands and becomes interactive during drag
+  - Click-through re-enables automatically after interaction ends
+  - No crashes or instability related to window management
+* Start/pause/resume/skip/extend works reliably with monotonic timing and sleep/wake correction
+* Bubble + toolbar are draggable, always‑on‑top, and persist position across restarts
+* Presets function (25/5 & 50/10)
+* Global hotkeys operate when window is unfocused
+* Notes capture with quick screenshot attach
+* Local persistence (SQLite); restart recovery of an active session
+* Unit tests: phase transitions, extend/skip behavior, sleep/wake drift
 
 ---
 
