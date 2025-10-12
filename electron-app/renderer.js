@@ -898,7 +898,9 @@ function hideSettings() {
     console.error('[Settings] panelsContainer element not found!');
   }
   
-  console.log('[Settings] Panel closed');
+  // Reset timer focus to START button (middle button, index 1) when returning to timer
+  focusState.timerFocusIndex = 1;
+  console.log('[Settings] Panel closed - timer focus reset to START button');
 }
 
 function switchTab(tabName) {
@@ -1166,11 +1168,15 @@ function initializeFocusManagement() {
   console.log('[Focus] Initializing keyboard navigation');
   
   // Timer screen focusable elements (horizontal navigation)
+  // Order matches visual layout: Reset (left) - Start (center) - Settings (right)
   focusState.timerFocusableElements = [
-    elements.startPauseBtn,
     elements.resetBtn,
+    elements.startPauseBtn,
     elements.settingsBtn,
   ].filter(el => el !== null);
+  
+  // Set default focus to START button (middle button, index 1)
+  focusState.timerFocusIndex = 1;
   
   // Settings screen focusable elements (vertical navigation)
   // These are the interactive controls that can be navigated, organized by tab
