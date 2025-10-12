@@ -21,8 +21,10 @@ const state = {
   pomodorosCycleCount: 0, // Total in current cycle
   currentPomodoroInBreak: -1, // Which pomodoro (0-3) is currently in break phase (for yellow dot)
   
-  // Break warm-up (pause → break transition)
-  pauseWarmUpProgress: 0, // 0-4, yellow dots filling during pause
+  // Pause-break system (pause → warm-up → blinking → cool-down)
+  isInWarmUp: false, // True during 60-120s pause warm-up phase
+  warmUpProgress: 0, // 0-4, yellow dots filling left-to-right during warm-up
+  isBlinking: false, // True when all 4 dots are blinking (after 120s pause)
   warmUpIntervalId: null,
   
   // Break state
@@ -45,8 +47,11 @@ const state = {
     shortBreakMinutes: 5,
     longBreakMinutes: 15,
     cycleLength: 4, // Long break after 4 pomodoros
-    warmUpSeconds: 60, // Time to transition to break (15s per dot)
-    coolDownSeconds: 60, // Time to transition from break (15s per dot)
+    soundEnabled: false,
+    autoStartBreaks: false,
+    autoStartPomodoros: false,
+    showNotifications: true,
+    alwaysOnTop: false
   }
 };
 
@@ -331,6 +336,28 @@ function startTimer() {
       console.log('[Timer] Started work session:', snapshot);
       }
     } else if (state.runState === 'paused') {
+      // Check if resuming from pause-break
+      if (state.isInWarmUp || state.isBlinking) {
+        console.log('[Timer] Resuming from PAUSE-BREAK - starting cool-down');
+        
+        // Clear pause monitoring
+        if (pauseBlinkInterval) {
+          clearInterval(pauseBlinkInterval);
+          pauseBlinkInterval = null;
+        }
+        
+        // Reset warm-up/blinking state
+        state.isInWarmUp = false;
+        state.isBlinking = false;
+        state.isInBreakState = false;
+        
+        // Start cool-down
+        state.isInCooldown = true;
+        state.cooldownStartTime = Date.now();
+        state.cooldownProgress = 0; // Will clear dots right-to-left
+        console.log('[Timer] Cool-down started - yellow dots will clear right-to-left');
+      }
+      
       // Resume from pause
       const snapshotJson = rustCore.resumeTimer();
       snapshot = JSON.parse(snapshotJson);
@@ -341,9 +368,6 @@ function startTimer() {
     if (snapshot) {
       updateStateFromSnapshot(snapshot);
     }
-    
-    // Note: Break state is now handled by onPhaseComplete() 
-    // Old pause/warm-up/cooldown logic removed for simplicity
     
     // Start ticker
     if (timerInterval) {
@@ -408,6 +432,74 @@ function pauseTimer() {
   console.log('========================================');
 }
 
+function updatePauseDuration() {
+  if (!state.pauseStartTime) return;
+  
+  const pauseElapsed = Math.floor((Date.now() - state.pauseStartTime) / 1000); // seconds
+  state.pauseDuration = pauseElapsed;
+  
+  // Phase 1: Normal pause (0-60 seconds)
+  if (pauseElapsed < 60) {
+    // Do nothing, just paused
+    return;
+  }
+  
+  // Phase 2: Warm-up (60-120 seconds) - Yellow dots appear left-to-right every 15s
+  if (pauseElapsed >= 60 && pauseElapsed < 120) {
+    if (!state.isInWarmUp) {
+      console.log('[Pause-Break] Entering WARM-UP phase (1 minute pause reached)');
+      state.isInWarmUp = true;
+      state.isInBreakState = true; // Show coffee icon
+      state.warmUpProgress = 0;
+    }
+    
+    // Calculate which dot should be yellow (0-3 for first 3 dots, all 4 at 2:00)
+    const warmUpElapsed = pauseElapsed - 60;
+    const newProgress = Math.min(Math.floor(warmUpElapsed / 15), 3); // 0-3 during warm-up
+    
+    if (newProgress !== state.warmUpProgress) {
+      state.warmUpProgress = newProgress;
+      console.log(`[Pause-Break] Warm-up progress: ${newProgress + 1}/4 yellow dots (left-to-right)`);
+      updateUI();
+    }
+    return;
+  }
+  
+  // Phase 3: Blinking (120+ seconds) - All 4 dots blink
+  if (pauseElapsed >= 120) {
+    if (!state.isBlinking) {
+      console.log('[Pause-Break] Entering BLINKING phase (2 minutes pause reached)');
+      state.isBlinking = true;
+      state.warmUpProgress = 4; // All 4 dots
+      updateUI();
+    }
+    // Dots will blink via CSS animation
+    return;
+  }
+}
+
+function updateCooldown() {
+  if (!state.isInCooldown || !state.cooldownStartTime) return;
+  
+  const cooldownElapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
+  const newProgress = Math.min(Math.floor(cooldownElapsed / 15), 4);
+  
+  // Update progress if it changed
+  if (newProgress !== state.cooldownProgress) {
+    state.cooldownProgress = newProgress;
+    console.log(`[Pause-Break] Cool-down progress: ${newProgress}/4 dots cleared (right-to-left)`);
+  }
+  
+  // Complete cooldown after 60 seconds
+  if (cooldownElapsed >= 60) {
+    console.log('[Pause-Break] Cool-down complete - all yellow dots cleared');
+    state.isInCooldown = false;
+    state.cooldownStartTime = null;
+    state.cooldownProgress = 0;
+    state.warmUpProgress = 0;
+  }
+}
+
 function handleReset() {
   console.log('[Timer] Reset clicked');
   
@@ -423,6 +515,9 @@ function handleReset() {
   
   // Stop all intervals
   if (timerInterval) clearInterval(timerInterval);
+  if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
+  timerInterval = null;
+  pauseBlinkInterval = null;
   
   // Reset state (clean up old references)
   state.runState = 'idle';
@@ -436,6 +531,17 @@ function handleReset() {
   state.millisRemaining = state.config.workMinutes * 60 * 1000;
   state.millisTotal = state.millisRemaining;
   
+  // Reset pause-break state
+  state.pauseStartTime = null;
+  state.pauseDuration = 0;
+  state.isInWarmUp = false;
+  state.warmUpProgress = 0;
+  state.isBlinking = false;
+  state.isInCooldown = false;
+  state.cooldownStartTime = null;
+  state.cooldownProgress = 0;
+  
+  console.log('[Timer] State reset:', state);
   updateUI();
   sendStateUpdate(); // Notify toolbar
 }
@@ -522,6 +628,11 @@ function tick() {
     
     updateStateFromSnapshot(snapshot);
     
+    // Update cool-down if active (clears yellow dots right-to-left)
+  if (state.isInCooldown) {
+    updateCooldown();
+  }
+  
     // Check if phase is complete (only trigger once by clearing interval first)
     if (state.millisRemaining <= 0) {
       console.log('========================================');
@@ -572,7 +683,7 @@ function onPhaseComplete() {
       console.log(`[Timer] ${isLongBreak ? 'Long' : 'Short'} break (${breakMinutes} minutes)`);
       
       // Set up break timer
-      state.phase = 'break';
+    state.phase = 'break';
       state.isInBreakState = true;
       
       // Check auto-start breaks setting
@@ -654,8 +765,8 @@ function onPhaseComplete() {
           state.millisTotal = state.millisRemaining;
         }
       }
-      
-      updateUI();
+  
+  updateUI();
       sendStateUpdate(); // Notify toolbar
     }
   } catch (error) {
@@ -699,6 +810,7 @@ function updatePhaseIcon() {
   const isIdle = state.runState === 'idle';
   const isPaused = state.runState === 'paused' && !state.isInBreakState;
   const isBreak = state.isInBreakState;
+  const isPauseBreak = state.isInWarmUp || state.isBlinking; // Pause-break states
   const isRunning = state.runState === 'running';
   const isReflection = state.inReflectionPeriod;
   
@@ -711,8 +823,8 @@ function updatePhaseIcon() {
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
     `;
-  } else if (isBreak) {
-    // Coffee mug icon (during break)
+  } else if (isPauseBreak || isBreak) {
+    // Coffee mug icon (during break, warm-up, or blinking)
     iconSVG = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
@@ -768,41 +880,89 @@ function updateProgressRing() {
 function updateProgressDots() {
   const dots = elements.progressDots.querySelectorAll('.dot');
   
-  // New dot logic:
+  // Dot logic:
   // - Gray (unlit) = Not started
-  // - Yellow (solid, no blink) = Break in progress for this cycle
+  // - Yellow (solid) = Break in progress OR warm-up/cool-down
+  // - Yellow (blinking) = Pause-break blinking phase
   // - Green (solid) = Fully completed (pomodoro + break done)
-  // 
-  // The yellow dot indicates the current pomodoro is in its break phase.
-  // Once the break completes, it turns green to show the full cycle is done.
   
   dots.forEach((dot, index) => {
     dot.className = 'dot'; // Reset classes
     
-    // Show green for fully completed cycles (pomodoro + break)
-    if (index < state.completedPomodoros) {
+    // Priority 1: Reflection period (all green)
+    if (state.inReflectionPeriod && index < 4) {
       dot.classList.add('lit-green');
+      return;
     }
-    // Show yellow for the current cycle in break phase
-    else if (state.isInBreakState && index === state.currentPomodoroInBreak) {
-        dot.classList.add('lit-yellow');
-      // No blink - solid yellow during break
-    }
-    // Check reflection period (force all 4 to green)
-    else if (state.inReflectionPeriod && index < 4) {
+    
+    // Priority 2: Cool-down phase (yellow dots clearing right-to-left)
+    if (state.isInCooldown) {
+      // Preserve green dots for completed pomodoros
+      if (index < state.completedPomodoros) {
         dot.classList.add('lit-green');
       }
-    // Otherwise, dot stays gray (unlit)
+      // Show yellow for dots that haven't been cleared yet
+      // cooldownProgress goes from 0-4, clearing from right to left
+      // When progress=0, all 4 yellow. When progress=1, dots 0-2 yellow. etc.
+      else if (index < (4 - state.cooldownProgress)) {
+        dot.classList.add('lit-yellow');
+      }
+      return;
+    }
+    
+    // Priority 3: Warm-up phase (yellow dots appearing left-to-right)
+    if (state.isInWarmUp) {
+      // Preserve green dots for completed pomodoros
+      if (index < state.completedPomodoros) {
+        dot.classList.add('lit-green');
+      }
+      // Show yellow for dots that have appeared during warm-up
+      // warmUpProgress goes from 0-3, appearing left to right
+      else if (index <= state.warmUpProgress) {
+        dot.classList.add('lit-yellow');
+      }
+      return;
+    }
+    
+    // Priority 4: Blinking phase (all 4 yellow and blinking)
+    if (state.isBlinking) {
+      // Preserve green dots for completed pomodoros
+      if (index < state.completedPomodoros) {
+        dot.classList.add('lit-green');
+      }
+      // All other dots blink yellow
+      else {
+        dot.classList.add('lit-yellow', 'blink');
+      }
+      return;
+    }
+    
+    // Priority 5: Regular break phase (single yellow dot for current break)
+    if (state.isInBreakState && index === state.currentPomodoroInBreak) {
+      dot.classList.add('lit-yellow');
+      return;
+    }
+    
+    // Priority 6: Completed pomodoros (green dots)
+    if (index < state.completedPomodoros) {
+        dot.classList.add('lit-green');
+      return;
+      }
+    
+    // Default: Unlit (gray)
   });
 }
 
 function updatePhaseLabel() {
-  const isPaused = state.runState === 'paused' && !state.isInBreakState;
+  const isPaused = state.runState === 'paused' && !state.isInBreakState && !state.isInWarmUp && !state.isBlinking;
+  const isPauseBreak = state.isInWarmUp || state.isBlinking;
   const isBreak = state.isInBreakState;
   const isReflection = state.inReflectionPeriod;
   
   if (isReflection) {
     elements.phaseLabel.textContent = 'REFLECT';
+  } else if (isPauseBreak) {
+    elements.phaseLabel.textContent = 'BREAK'; // Show BREAK during pause-break warm-up/blinking
   } else if (isPaused) {
     elements.phaseLabel.textContent = 'PAUSE';
   } else if (isBreak) {
