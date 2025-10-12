@@ -825,6 +825,15 @@ function applyPreset(workMinutes, breakMinutes) {
   state.config.workMinutes = workMinutes;
   state.config.shortBreakMinutes = breakMinutes;
   
+  // Configure Rust core with preset values
+  rustCore.configure(
+    state.config.workMinutes,
+    state.config.shortBreakMinutes,
+    state.config.longBreakMinutes,
+    state.config.cycleLength
+  );
+  console.log('[Preset] ✓ Configured Rust core with preset values');
+  
   // Update timer
   state.millisRemaining = workMinutes * 60 * 1000;
   state.millisTotal = state.millisRemaining;
@@ -1056,6 +1065,8 @@ function saveSettings() {
 }
 
 function saveSettingsQuiet() {
+  console.log('[Settings] ========== SAVING SETTINGS ==========');
+  
   // Read values from display elements
   const newConfig = {
     workMinutes: parseInt(elements.workMinutesValue.textContent, 10),
@@ -1069,21 +1080,32 @@ function saveSettingsQuiet() {
     alwaysOnTop: elements.alwaysOnTopToggle.checked,
   };
   
-  console.log('[Settings] Saving configuration:', newConfig);
+  console.log('[Settings] New configuration to save:', newConfig);
+  console.log('[Settings] Timer state:', { runState: state.runState, millisRemaining: state.millisRemaining });
   
   // Update state
   state.config = newConfig;
   
+  // Configure Rust core with new settings
+  rustCore.configure(
+    newConfig.workMinutes,
+    newConfig.shortBreakMinutes,
+    newConfig.longBreakMinutes,
+    newConfig.cycleLength
+  );
+  console.log('[Settings] ✓ Configured Rust core with new settings');
+  
   // Always update timer display if idle (not running or in break)
   // This ensures the timer reflects the new duration immediately
   if (state.runState === 'idle') {
+    const oldMillis = state.millisRemaining;
     state.millisRemaining = newConfig.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
     updateProgressRing();
-    console.log('[Settings] Applied new work duration to idle timer:', newConfig.workMinutes, 'minutes');
+    console.log('[Settings] ✓ Timer was IDLE - Updated timer:', oldMillis, '→', state.millisRemaining, '(', newConfig.workMinutes, 'minutes)');
   } else {
-    console.log('[Settings] Timer is not idle (state:', state.runState, ') - duration will apply on next reset/start');
+    console.log('[Settings] ⚠ Timer is NOT idle (runState:', state.runState, ') - duration will apply on next reset');
   }
   
   // Save to localStorage
@@ -1096,12 +1118,14 @@ function saveSettingsQuiet() {
 
 function loadSettings() {
   const saved = localStorage.getItem('focus-config');
-  console.log('[Settings] Loading settings from localStorage:', saved ? 'Found' : 'Not found');
+  console.log('[Settings] ========== LOADING SETTINGS ==========');
+  console.log('[Settings] Raw localStorage value:', saved);
+  console.log('[Settings] Current state.millisRemaining BEFORE load:', state.millisRemaining);
   
   if (saved) {
     try {
       const config = JSON.parse(saved);
-      console.log('[Settings] Parsed config from localStorage:', config);
+      console.log('[Settings] ✓ Parsed config from localStorage:', config);
       
       state.config = {
         workMinutes: (config.workMinutes !== undefined && config.workMinutes !== null) ? config.workMinutes : 25,
@@ -1114,20 +1138,37 @@ function loadSettings() {
         showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
         alwaysOnTop: config.alwaysOnTop !== undefined ? config.alwaysOnTop : false,
       };
-      console.log('[Settings] Applied configuration to state.config:', state.config);
+      console.log('[Settings] ✓ Applied configuration to state.config:', state.config);
+      
+      // Configure Rust core with loaded settings
+      rustCore.configure(
+        state.config.workMinutes,
+        state.config.shortBreakMinutes,
+        state.config.longBreakMinutes,
+        state.config.cycleLength
+      );
+      console.log('[Settings] ✓ Configured Rust core with user settings');
       
       // Apply loaded settings to timer - always update on startup
+      const oldMillis = state.millisRemaining;
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
       state.millisTotal = state.millisRemaining;
+      console.log('[Settings] ✓ Updated timer: ', oldMillis, '→', state.millisRemaining, '(', state.config.workMinutes, 'minutes )');
       updateTimerDisplay();
       updateProgressRing();
-      console.log('[Settings] Applied work duration to timer on startup:', state.config.workMinutes, 'minutes');
+      console.log('[Settings] ✓ Updated display with new duration');
       
       // Send to main process on startup
       ipcRenderer.send('settings-save', state.config);
     } catch (e) {
       console.error('[Settings] Failed to load from localStorage:', e);
-      // Fall back to defaults
+      // Fall back to defaults and configure Rust core
+      rustCore.configure(
+        state.config.workMinutes,
+        state.config.shortBreakMinutes,
+        state.config.longBreakMinutes,
+        state.config.cycleLength
+      );
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
       state.millisTotal = state.millisRemaining;
       updateTimerDisplay();
@@ -1137,6 +1178,13 @@ function loadSettings() {
   } else {
     // No saved settings, set initial timer with defaults
     console.log('[Settings] No saved settings found, using defaults:', state.config);
+    rustCore.configure(
+      state.config.workMinutes,
+      state.config.shortBreakMinutes,
+      state.config.longBreakMinutes,
+      state.config.cycleLength
+    );
+    console.log('[Settings] ✓ Configured Rust core with default settings');
     state.millisRemaining = state.config.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
