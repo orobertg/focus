@@ -373,14 +373,18 @@ function startTimer() {
 }
 
 function pauseTimer() {
-  console.log('[Timer] Pausing timer');
+  console.log('========================================');
+  console.log('[Timer] ⏸️  PAUSE BUTTON CLICKED');
+  console.log('[Timer] Current runState:', state.runState);
+  console.log('========================================');
   
   try {
     const snapshotJson = rustCore.pauseTimer();
     const snapshot = JSON.parse(snapshotJson);
-    console.log('[Timer] Paused:', snapshot);
+    console.log('[Timer] Rust core returned snapshot:', snapshot);
     
     updateStateFromSnapshot(snapshot);
+    console.log('[Timer] After updateStateFromSnapshot, state.runState:', state.runState);
   } catch (error) {
     console.error('[Timer] Error pausing timer:', error);
   }
@@ -391,13 +395,17 @@ function pauseTimer() {
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
+    console.log('[Timer] Timer interval cleared');
   }
   
   // Start monitoring pause duration
   if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
   pauseBlinkInterval = setInterval(updatePauseDuration, 250);
   
+  console.log('[Timer] Calling updateUI()...');
   updateUI();
+  console.log('[Timer] After updateUI(), button text should be:', elements.startPauseBtn.textContent);
+  console.log('========================================');
 }
 
 function handleReset() {
@@ -806,10 +814,13 @@ function updatePhaseLabel() {
 }
 
 function updateStartPauseButton() {
+  console.log('[UI] updateStartPauseButton called - runState:', state.runState);
   if (state.runState === 'running') {
     elements.startPauseBtn.textContent = 'PAUSE';
+    console.log('[UI] Button set to: PAUSE');
   } else {
     elements.startPauseBtn.textContent = 'START';
+    console.log('[UI] Button set to: START (runState is "' + state.runState + '")');
   }
 }
 
