@@ -47,6 +47,25 @@ class PomodoroCore {
     return this.getSnapshot();
   }
 
+  startBreak(breakMinutes, isLongBreak = false) {
+    const now = Date.now();
+    this.session = {
+      sessionId: crypto.randomUUID(),
+      phase: isLongBreak ? 'LongBreak' : 'ShortBreak',
+      runState: 'Running',
+      millisTotal: breakMinutes * 60 * 1000,
+      startedAt: now,
+      carriedMs: 0,
+      cycleIndex: this.session ? this.session.cycleIndex : 1,
+      workMin: this.config.workMin,
+      shortBreakMin: this.config.shortBreakMin,
+      longBreakMin: this.config.longBreakMin,
+      cycleLen: this.config.cycleLen,
+    };
+    console.log(`[Core Stub] Started ${isLongBreak ? 'long' : 'short'} break: ${breakMinutes} minutes`);
+    return this.getSnapshot();
+  }
+
   pauseTimer() {
     if (this.session && this.session.runState === 'Running') {
       const now = Date.now();
@@ -112,6 +131,7 @@ module.exports = {
     core.configure(workMin, shortBreakMin, longBreakMin, cycleLen);
   },
   startWork: () => JSON.stringify(core.startWork()),
+  startBreak: (breakMinutes, isLongBreak) => JSON.stringify(core.startBreak(breakMinutes, isLongBreak)),
   pauseTimer: () => JSON.stringify(core.pauseTimer()),
   resumeTimer: () => JSON.stringify(core.resumeTimer()),
   stopTimer: () => JSON.stringify(core.stopTimer()),

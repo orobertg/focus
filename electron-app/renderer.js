@@ -17,8 +17,9 @@ const state = {
   pauseDuration: 0,
   
   // Pomodoro tracking
-  completedPomodoros: 0, // 0-4, tracks green dots
+  completedPomodoros: 0, // 0-4, tracks green dots (only incremented after break completes)
   pomodorosCycleCount: 0, // Total in current cycle
+  currentPomodoroInBreak: -1, // Which pomodoro (0-3) is currently in break phase (for yellow dot)
   
   // Break warm-up (pause → break transition)
   pauseWarmUpProgress: 0, // 0-4, yellow dots filling during pause
@@ -265,11 +266,17 @@ function sendStateUpdate() {
    ============================================ */
 
 function handleStartPause() {
-  console.log('[Timer] Start/Pause clicked, current state:', state.runState);
+  console.log('========================================');
+  console.log('[Timer] 🔵 START/PAUSE BUTTON CLICKED');
+  console.log('[Timer] Current runState:', state.runState);
+  console.log('[Timer] Current phase:', state.phase);
+  console.log('========================================');
   
   if (state.runState === 'idle' || state.runState === 'paused') {
+    console.log('[Timer] Calling startTimer()...');
     startTimer();
   } else if (state.runState === 'running') {
+    console.log('[Timer] Calling pauseTimer()...');
     pauseTimer();
   }
   
@@ -277,7 +284,10 @@ function handleStartPause() {
 }
 
 function startTimer() {
-  console.log('[Timer] Starting timer');
+  console.log('========================================');
+  console.log('[Timer] 🟢 START_TIMER() FUNCTION CALLED');
+  console.log('[Timer] Phase:', state.phase, '| RunState:', state.runState);
+  console.log('========================================');
   
   // Check if in reflection period
   if (state.inReflectionPeriod) {
@@ -301,11 +311,25 @@ function startTimer() {
   try {
     let snapshot;
     
-    // If starting from idle, start work session
+    // If starting from idle, check phase
     if (state.runState === 'idle') {
+      if (state.phase === 'break') {
+        // Starting a break manually - set yellow dot NOW
+        state.currentPomodoroInBreak = state.completedPomodoros;
+        console.log(`[Timer] Starting break manually - yellow dot for pomodoro index: ${state.currentPomodoroInBreak}`);
+        
+        const isLongBreak = (state.pomodorosCycleCount % state.config.cycleLength === 0);
+        const breakMinutes = isLongBreak ? state.config.longBreakMinutes : state.config.shortBreakMinutes;
+        console.log('[Timer] Starting break session manually:', breakMinutes, 'minutes');
+        const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
+        snapshot = JSON.parse(snapshotJson);
+        console.log('[Timer] Started break session:', snapshot);
+      } else {
+        // Starting a focus/work session
       const snapshotJson = rustCore.startWork();
       snapshot = JSON.parse(snapshotJson);
       console.log('[Timer] Started work session:', snapshot);
+      }
     } else if (state.runState === 'paused') {
       // Resume from pause
       const snapshotJson = rustCore.resumeTimer();
@@ -318,24 +342,29 @@ function startTimer() {
       updateStateFromSnapshot(snapshot);
     }
     
-    // If resuming from break state, start cool-down
-    if (state.isInBreakState) {
-      state.isInBreakState = false;
-      state.isInCooldown = true;
-      state.cooldownStartTime = Date.now();
-      state.cooldownProgress = 0;
-      startCoolDown();
-      stopBreakBlink();
-    }
-    
-    // Clear pause tracking
-    state.pauseStartTime = null;
-    state.pauseDuration = 0;
-    state.pauseWarmUpProgress = 0;
+    // Note: Break state is now handled by onPhaseComplete() 
+    // Old pause/warm-up/cooldown logic removed for simplicity
     
     // Start ticker
-    if (timerInterval) clearInterval(timerInterval);
+    if (timerInterval) {
+      console.log('[Timer] Clearing existing interval:', timerInterval);
+      clearInterval(timerInterval);
+    }
+    
+    console.log('[Timer] About to start interval...');
     timerInterval = setInterval(tick, 250); // 4 ticks per second
+    console.log('[Timer] ✅ INTERVAL STARTED! intervalID:', timerInterval);
+    console.log('[Timer] Current state:', {
+      phase: state.phase,
+      runState: state.runState,
+      millisRemaining: state.millisRemaining,
+      millisTotal: state.millisTotal
+    });
+    
+    // Manually call tick once to verify it works
+    console.log('[Timer] Calling tick() manually for verification...');
+    tick();
+    console.log('[Timer] Manual tick() complete');
     
     updateUI();
   } catch (error) {
@@ -386,15 +415,18 @@ function handleReset() {
   
   // Stop all intervals
   if (timerInterval) clearInterval(timerInterval);
-  if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
-  stopBreakBlink();
   
-  // Reset UI state
-  state.pauseStartTime = null;
-  state.pauseDuration = 0;
+  // Reset state (clean up old references)
+  state.runState = 'idle';
+  state.phase = 'focus';
+  state.completedPomodoros = 0;
+  state.pomodorosCycleCount = 0;
+  state.currentPomodoroInBreak = -1;
   state.isInBreakState = false;
-  state.isInCooldown = false;
-  state.cooldownStartTime = null;
+  state.inReflectionPeriod = false;
+  state.reflectionStartTime = null;
+  state.millisRemaining = state.config.workMinutes * 60 * 1000;
+  state.millisTotal = state.millisRemaining;
   
   updateUI();
   sendStateUpdate(); // Notify toolbar
@@ -464,158 +496,173 @@ function updateStateFromSnapshot(snapshot) {
    ============================================ */
 
 function tick() {
-  if (state.runState !== 'running') return;
+  if (state.runState !== 'running') {
+    console.log('[Timer] tick() called but runState is not running:', state.runState);
+    return;
+  }
   
   try {
     // Get latest snapshot from Rust core
     const snapshotJson = rustCore.getSnapshot();
     const snapshot = JSON.parse(snapshotJson);
+    
+    // Debug: Log every 10 seconds
+    const secondsRemaining = Math.floor((snapshot.millisTotal - snapshot.millisElapsed) / 1000);
+    if (secondsRemaining % 10 === 0 && secondsRemaining > 0) {
+      console.log(`[Timer] Ticking... ${secondsRemaining}s remaining (phase: ${snapshot.phase})`);
+    }
+    
     updateStateFromSnapshot(snapshot);
     
-    // Check if phase is complete
+    // Check if phase is complete (only trigger once by clearing interval first)
     if (state.millisRemaining <= 0) {
+      console.log('========================================');
+      console.log('[Timer] ⚠️ PHASE COMPLETE DETECTED!');
+      console.log('[Timer] Phase:', state.phase);
+      console.log('[Timer] millisRemaining:', state.millisRemaining);
+      console.log('[Timer] millisElapsed:', snapshot.millisElapsed);
+      console.log('[Timer] millisTotal:', snapshot.millisTotal);
+      console.log('[Timer] Auto-start breaks:', state.config.autoStartBreaks);
+      console.log('[Timer] Auto-start pomodoros:', state.config.autoStartPomodoros);
+      console.log('========================================');
+      
+      // Stop ticking immediately to prevent multiple calls to onPhaseComplete
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        console.log('[Timer] Interval cleared');
+      }
+      
+      // Handle phase completion (this will start new interval if auto-start is enabled)
       onPhaseComplete();
+      return; // Exit tick immediately after phase completion
     }
   } catch (error) {
     console.error('[Timer] Error in tick:', error);
-  }
-  
-  // Update cooldown if active
-  if (state.isInCooldown) {
-    updateCooldown();
   }
   
   updateUI();
 }
 
 function onPhaseComplete() {
-  console.log('[Timer] Phase complete:', state.phase);
+  console.log('========================================');
+  console.log('[Timer] 🔔 onPhaseComplete() CALLED');
+  console.log('[Timer] Phase:', state.phase, 'RunState:', state.runState);
+  console.log('[Timer] Config:', { autoStartBreaks: state.config.autoStartBreaks, autoStartPomodoros: state.config.autoStartPomodoros });
+  console.log('========================================');
   
-  if (state.phase === 'focus') {
-    state.completedPomodoros++;
+  try {
+    if (state.phase === 'work') {
+      // Pomodoro completed - now enter break phase
     state.pomodorosCycleCount++;
-    console.log(`[Timer] Completed pomodoros: ${state.completedPomodoros}/4 (cycle: ${state.pomodorosCycleCount})`);
-    
-    // Check if we've completed 4 pomodoros
-    if (state.completedPomodoros >= 4) {
-      console.log('[Timer] 4 pomodoros completed! Entering REFLECT period');
-      state.inReflectionPeriod = true;
-      state.reflectionStartTime = Date.now();
-      state.phase = 'reflect';
-      state.completedPomodoros = 4; // Keep at 4 to show all green dots
-    } else {
-      state.phase = 'focus'; // Stay in focus phase for next pomodoro
+      console.log(`[Timer] Pomodoro ${state.pomodorosCycleCount} completed. Transitioning to break.`);
+      
+      // Determine break duration (short or long)
+      const isLongBreak = (state.pomodorosCycleCount % state.config.cycleLength === 0);
+      const breakMinutes = isLongBreak ? state.config.longBreakMinutes : state.config.shortBreakMinutes;
+      
+      console.log(`[Timer] ${isLongBreak ? 'Long' : 'Short'} break (${breakMinutes} minutes)`);
+      
+      // Set up break timer
+      state.phase = 'break';
+      state.isInBreakState = true;
+      
+      // Check auto-start breaks setting
+      if (state.config.autoStartBreaks) {
+        console.log('[Timer] Auto-start breaks enabled - starting break automatically in Rust core');
+        
+        // Set yellow dot WHEN break starts
+        state.currentPomodoroInBreak = state.completedPomodoros;
+        console.log(`[Timer] Yellow dot will be for pomodoro index: ${state.currentPomodoroInBreak}`);
+        
+        // Start break session in Rust core
+        const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
+        const snapshot = JSON.parse(snapshotJson);
+        console.log('[Timer] Break snapshot from Rust core:', snapshot);
+        updateStateFromSnapshot(snapshot);
+        
+        state.runState = 'running';
+        console.log('[Timer] Starting break interval...');
+        // Start the timer interval
+        timerInterval = setInterval(tick, 250); // 4 ticks per second
+        console.log('[Timer] Break interval started. State:', { phase: state.phase, runState: state.runState, millisRemaining: state.millisRemaining });
+      } else {
+        console.log('[Timer] Auto-start breaks disabled - waiting for user to click START');
+        // Do NOT set currentPomodoroInBreak yet - wait for user to click START
+        state.currentPomodoroInBreak = -1;
+        state.runState = 'idle';
+        state.millisRemaining = breakMinutes * 60 * 1000;
+        state.millisTotal = state.millisRemaining;
+        console.log('[Timer] Break ready. Yellow dot will appear when user clicks START.');
+  }
+  
+  updateUI();
+      sendStateUpdate(); // Notify toolbar
+    } else if (state.phase === 'shortbreak' || state.phase === 'longbreak') {
+      // Break completed - mark pomodoro as fully complete (green dot)
+      console.log(`[Timer] Break completed for pomodoro ${state.currentPomodoroInBreak + 1}`);
+      
+      // Increment completed pomodoros (this turns the dot green)
+      state.completedPomodoros++;
+      state.currentPomodoroInBreak = -1; // Clear yellow dot state
+      
+      console.log(`[Timer] Completed pomodoros: ${state.completedPomodoros}/4`);
+      
+      // Update break state
+      state.isInBreakState = false;
+      
+      // Check if we've completed 4 full cycles (pomodoro + break)
+      if (state.completedPomodoros >= 4) {
+        console.log('[Timer] 4 full cycles completed! Entering REFLECT period');
+        state.inReflectionPeriod = true;
+        state.reflectionStartTime = Date.now();
+        state.phase = 'reflect';
+        state.completedPomodoros = 4; // Keep at 4 to show all green dots
+        state.runState = 'idle';
+        state.millisRemaining = state.reflectionMinMinutes * 60 * 1000;
+        state.millisTotal = state.millisRemaining;
+      } else {
+        // Transition to next pomodoro
+        state.phase = 'focus';
+        
+        // Check auto-start pomodoros setting
+        if (state.config.autoStartPomodoros) {
+          console.log('[Timer] Auto-start pomodoros enabled - starting next pomodoro automatically in Rust core');
+          // Start work session in Rust core
+          const snapshotJson = rustCore.startWork();
+          const snapshot = JSON.parse(snapshotJson);
+          console.log('[Timer] Next pomodoro snapshot from Rust core:', snapshot);
+          updateStateFromSnapshot(snapshot);
+          
+          state.runState = 'running';
+          console.log('[Timer] Starting next pomodoro interval...');
+          // Start the timer interval
+          timerInterval = setInterval(tick, 250); // 4 ticks per second
+          console.log('[Timer] Pomodoro interval started. State:', { phase: state.phase, runState: state.runState, millisRemaining: state.millisRemaining });
+        } else {
+          console.log('[Timer] Auto-start pomodoros disabled - waiting for user to click START');
+          state.runState = 'idle';
+          state.millisRemaining = state.config.workMinutes * 60 * 1000;
+          state.millisTotal = state.millisRemaining;
+        }
+      }
+      
+      updateUI();
+      sendStateUpdate(); // Notify toolbar
     }
-    
-    // Stop timer
-    state.runState = 'idle';
-    state.millisRemaining = state.config.workMinutes * 60 * 1000;
-    state.millisTotal = state.config.workMinutes * 60 * 1000;
-    
-    if (timerInterval) clearInterval(timerInterval);
+  } catch (error) {
+    console.error('========================================');
+    console.error('[Timer] ❌ ERROR IN onPhaseComplete():');
+    console.error(error);
+    console.error('Stack trace:', error.stack);
+    console.error('========================================');
   }
-  
-  updateUI();
 }
 
 /* ============================================
-   Pause Duration Tracking
+   Note: Old pause/warm-up/cooldown logic removed
+   Breaks now transition directly from pomodoro completion
    ============================================ */
-
-function updatePauseDuration() {
-  if (state.runState !== 'paused' || !state.pauseStartTime) return;
-  
-  state.pauseDuration = Math.floor((Date.now() - state.pauseStartTime) / 1000);
-  
-  // Update warm-up progress (fill dots every 15 seconds)
-  const warmUpProgress = Math.min(Math.floor(state.pauseDuration / 15), 4);
-  if (warmUpProgress !== state.pauseWarmUpProgress) {
-    state.pauseWarmUpProgress = warmUpProgress;
-    console.log(`[Timer] Warm-up progress: ${warmUpProgress}/4 dots`);
-  }
-  
-  // Transition to break after 60 seconds (all 4 dots yellow)
-  if (state.pauseDuration >= 60 && !state.isInBreakState) {
-    console.log('[Timer] Transitioning to BREAK state');
-    state.isInBreakState = true;
-    state.phase = 'break';
-    state.pauseWarmUpProgress = 0; // Reset warm-up
-    // Note: dots will blink via CSS, no need for interval
-  }
-  
-  updateUI();
-}
-
-let breakBlinkInterval = null;
-let dotsVisible = true;
-
-function startBreakBlink() {
-  if (breakBlinkInterval) return;
-  
-  breakBlinkInterval = setInterval(() => {
-    dotsVisible = !dotsVisible;
-    updateUI();
-  }, 500);
-}
-
-function stopBreakBlink() {
-  if (breakBlinkInterval) {
-    clearInterval(breakBlinkInterval);
-    breakBlinkInterval = null;
-  }
-  dotsVisible = true;
-}
-
-/* ============================================
-   Cooldown (after resuming from break)
-   ============================================ */
-
-function startCoolDown() {
-  console.log('[Timer] Starting cool-down sequence (60s to clear yellow dots right-to-left)');
-  
-  // Clear any existing cool-down interval
-  if (state.cooldownIntervalId) {
-    clearInterval(state.cooldownIntervalId);
-    state.cooldownIntervalId = null;
-  }
-  
-  // Note: Cool-down progress is updated by updateCooldown() which is called from tick()
-  // This ensures smooth animation as part of the main timer loop
-}
-
-function stopCoolDown() {
-  console.log('[Timer] Stopping cool-down');
-  
-  if (state.cooldownIntervalId) {
-    clearInterval(state.cooldownIntervalId);
-    state.cooldownIntervalId = null;
-  }
-  
-  state.isInCooldown = false;
-  state.cooldownProgress = 0;
-  state.cooldownStartTime = null;
-  
-  updateUI();
-}
-
-function updateCooldown() {
-  if (!state.isInCooldown || !state.cooldownStartTime) return;
-  
-  const cooldownElapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
-  const newProgress = Math.min(Math.floor(cooldownElapsed / 15), 4);
-  
-  // Update progress if it changed
-  if (newProgress !== state.cooldownProgress) {
-    state.cooldownProgress = newProgress;
-    console.log(`[Timer] Cool-down progress: ${newProgress}/4 dots cleared (right-to-left)`);
-  }
-  
-  // Complete cooldown after 60 seconds
-  if (cooldownElapsed >= 60) {
-    console.log('[Timer] Cool-down complete - all dots returned to original state');
-    stopCoolDown();
-  }
-}
 
 /* ============================================
    UI Updates
@@ -713,61 +760,31 @@ function updateProgressRing() {
 function updateProgressDots() {
   const dots = elements.progressDots.querySelectorAll('.dot');
   
-  // Priority order for dot states:
-  // 1. Cool-down yellow (clearing right-to-left, restoring green underneath)
-  // 2. Warm-up yellow (filling left-to-right, overlaying green)
-  // 3. Break yellow blinking (all 4)
-  // 4. Completed green (solid)
-  // 5. Default gray (unfilled)
+  // New dot logic:
+  // - Gray (unlit) = Not started
+  // - Yellow (solid, no blink) = Break in progress for this cycle
+  // - Green (solid) = Fully completed (pomodoro + break done)
+  // 
+  // The yellow dot indicates the current pomodoro is in its break phase.
+  // Once the break completes, it turns green to show the full cycle is done.
   
   dots.forEach((dot, index) => {
     dot.className = 'dot'; // Reset classes
     
-    // First, always show the base green dots for completed pomodoros
-    const isCompletedPomodoro = index < state.completedPomodoros;
-    if (isCompletedPomodoro) {
+    // Show green for fully completed cycles (pomodoro + break)
+    if (index < state.completedPomodoros) {
       dot.classList.add('lit-green');
     }
-    
-    // Then overlay special states on top
-    
-    // Check cool-down state (clearing yellow from right to left)
-    if (state.isInCooldown) {
-      // Yellow dots remain on the LEFT side (haven't been cleared yet)
-      // Cool-down clears from right to left every 15 seconds
-      // Progress: 0 = all 4 yellow, 1 = 3 yellow, 2 = 2 yellow, 3 = 1 yellow, 4 = 0 yellow
-      const remainingYellowDots = 4 - state.cooldownProgress;
-      if (index < remainingYellowDots) {
-        // Override with yellow (this dot hasn't cleared yet)
-        dot.classList.remove('lit-green');
+    // Show yellow for the current cycle in break phase
+    else if (state.isInBreakState && index === state.currentPomodoroInBreak) {
         dot.classList.add('lit-yellow');
-      }
-      // Else: keep the green if it was a completed pomodoro (dots restore right-to-left)
-    }
-    // Check warm-up state (filling yellow from left to right)
-    else if (state.runState === 'paused' && !state.isInBreakState && state.pauseWarmUpProgress > 0) {
-      // Yellow dots fill from left to right
-      if (index < state.pauseWarmUpProgress) {
-        // Override with yellow (warm-up in progress)
-        dot.classList.remove('lit-green');
-        dot.classList.add('lit-yellow');
-      }
-      // Else: keep the green if it was a completed pomodoro
-    }
-    // Check break state (all 4 yellow blinking, overrides everything)
-    else if (state.isInBreakState) {
-      dot.classList.remove('lit-green');
-      dot.classList.add('lit-yellow');
-      dot.classList.add('blink');
+      // No blink - solid yellow during break
     }
     // Check reflection period (force all 4 to green)
-    else if (state.inReflectionPeriod) {
-      // Show all 4 green dots during reflection
-      if (index < 4) {
-        dot.classList.remove('lit-yellow');
+    else if (state.inReflectionPeriod && index < 4) {
         dot.classList.add('lit-green');
       }
-    }
+    // Otherwise, dot stays gray (unlit)
   });
 }
 
