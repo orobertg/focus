@@ -9,23 +9,25 @@
 
 ---
 
-## ✅ Electron App - Phase 2 Complete (95%)!
+## ✅ Electron App - Phase 2 Complete (100%)!
 
 **The migration from Flutter to Electron is SUCCESSFUL and the app is fully functional!**
 
-**Current Status:** Phase 1 (Foundation) ✅ Complete | Phase 2 (Core Features) 🚧 95% Complete
+**Current Status:** Phase 1 (Foundation) ✅ Complete | Phase 2 (Core Features) ✅ Complete!
 
 **What Works NOW:**
 - ✅ **Click-through functionality** - Perfect stability, no crashes
 - ✅ **Beautiful timer UI** - 280×340 rounded square with progress ring
-- ✅ **Full Pomodoro Technique** - Complete implementation with progress tracking
+- ✅ **Full Pomodoro Technique** - Complete implementation with visual progress
+- ✅ **Pause-Break System** - 4-phase gentle break encouragement with visual progression
+- ✅ **Auto-start controls** - Independently control break and pomodoro auto-start
+- ✅ **Progress dots** - Gray (not started) → Yellow (break) → Green (complete)
 - ✅ **Timer controls** - Start, pause, reset all functional
 - ✅ **Independent toolbar** - Separate draggable window with IPC communication
-- ✅ **Break transitions** - 60-second warm-up and cool-down sequences
-- ✅ **Progress tracking** - Green dots show completed pomodoros (0-4)
-- ✅ **Reflection periods** - Blue star celebration after 4 pomodoros
-- ✅ **Settings panel** - Swipeable configuration interface
-- ✅ **Global hotkeys** - ALT+SHIFT+P/C/S/N
+- ✅ **Reflection periods** - Blue star celebration after 4 full cycles
+- ✅ **Settings panel** - Inline 3-tab interface (Duration/Options/Notifications)
+- ✅ **Keyboard navigation** - Complete keyboard-driven operation
+- ✅ **Global hotkeys** - ALT+SHIFT+P/C/O for visibility, click-through, options
 - ✅ **System tray** - Background operation
 - ✅ **Position persistence** - Windows remember their locations
 
@@ -57,10 +59,12 @@ npm start
 - ✅ **Precision Timing** — Rust-powered Pomodoro engine (stub implementation)
 - ✅ **Beautiful UI** — Circular progress ring, phase icons, animated dots
 - ✅ **Timer Controls** — Start, Pause, Reset functionality
-- ✅ **Global Hotkeys** — ALT+SHIFT+P (toggle), C (click-through), S/N (placeholder)
+- ✅ **Pause-Break System** — 4-phase visual progression (pause → warm-up → blinking → cool-down)
+- ✅ **Global Hotkeys** — ALT+SHIFT+P (toggle), C (click-through), O (options)
 - ✅ **Position Memory** — Persists across sessions with electron-store
 - ✅ **System Tray** — Background running, tray menu
 - ✅ **Full Pomodoro Technique** — Progress tracking, break transitions, reflection periods
+- ✅ **Keyboard Navigation** — Complete keyboard-driven operation with visual focus indicators
 
 ---
 
@@ -74,30 +78,75 @@ Focus App implements the complete **Pomodoro Technique** with visual feedback an
 - Work in **25-minute focused intervals** (configurable)
 - Open eye icon 👁️ shows you're actively focusing
 - Progress ring fills as time elapses
-- Each completed session lights up a **green dot** (max 4 per cycle)
+- **Auto-start Pomodoros** setting controls if next session starts automatically after break
 
-#### **2. Break Warm-Up** ⏸️
-When you pause the timer:
-- Yellow dots fill **left-to-right** every 15 seconds
-- Visual countdown: 1 dot (15s) → 2 dots (30s) → 3 dots (45s) → 4 dots (60s)
-- After **60 seconds**, automatically transitions to **BREAK** mode
-- *This gentle transition encourages you to actually take breaks!*
-
-#### **3. Break Mode** ☕
+#### **2. Break Transition** ☕
+When a pomodoro completes:
+- The dot for that session turns **yellow** (break in progress)
 - Coffee mug icon appears
-- All 4 dots turn **yellow and blink**
-- Label shows "BREAK"
+- **Auto-start Breaks** setting controls behavior:
+  - **Enabled**: Break timer starts automatically
+  - **Disabled**: Break screen appears, press START to begin
 - Take your well-deserved rest!
 
-#### **4. Break Cool-Down** 🔄
-When you resume from break:
-- Yellow dots clear **right-to-left** every 15 seconds
-- Takes 60 seconds to fully transition back to focus
-- Your **green completed-pomodoro dots reappear** underneath
-- Smooth re-entry to focus mode
+#### **3. Completing the Cycle** ✅
+When break finishes:
+- The yellow dot turns **green** (full cycle complete!)
+- Progress ring shows next pomodoro countdown
+- **Auto-start Pomodoros** setting controls behavior:
+  - **Enabled**: Next pomodoro starts automatically
+  - **Disabled**: Focus screen appears, press START to begin
 
-#### **5. Reflection Period** ⭐
-After completing **4 consecutive pomodoros**:
+#### **4. Visual Progress** 📊
+- **Gray dot** ○ = Cycle not started yet
+- **Yellow dot** 🟡 = Break in progress for this cycle
+- **Green dot** 🟢 = Fully completed (pomodoro + break done)
+
+#### **5. Pause-Break System** ⏸️☕
+A sophisticated system that gently encourages breaks during extended pauses:
+
+**Phase 1: Normal Pause (0-60s)**
+- Click PAUSE during focus session
+- Timer display shows remaining time (frozen)
+- Button shows START
+- No visual changes
+
+**Phase 2: Warm-Up (60s-120s)**
+- After **1 minute** of pause, automatic break mode initiates
+- Coffee mug icon ☕ appears
+- Yellow dots appear **left-to-right** every 15 seconds:
+  - 1:15 → First yellow dot
+  - 1:30 → Second yellow dot
+  - 1:45 → Third yellow dot
+  - 2:00 → Fourth yellow dot
+- Timer continues to show remaining focus time
+
+**Phase 3: Blinking (120s+)**
+- After **2 minutes** of pause, all 4 yellow dots blink
+- Encourages you to click START and resume
+- Blinking continues indefinitely until you resume
+- Timer still shows remaining focus time
+
+**Phase 4: Cool-Down (60s while running)**
+- When you click START after pause-break:
+  - Focus timer **immediately resumes** counting down
+  - Yellow dots clear **right-to-left** every 15 seconds simultaneously
+  - 0-15s: 4th dot clears
+  - 15-30s: 3rd dot clears
+  - 30-45s: 2nd dot clears
+  - 45-60s: 1st dot clears (all normal)
+- **Green dots preserved** — Completed pomodoros stay green throughout
+- This creates a smooth visual transition back to focus mode
+
+**Why This Works:**
+- Encourages healthy breaks during long pauses
+- Visual progression makes break duration tangible
+- Gentle nudging without forced interruptions
+- Preserves progress tracking (green dots untouched)
+- Respects your autonomy (you choose when to resume)
+
+#### **6. Reflection Period** ⭐
+After completing **4 full cycles** (pomodoro + break):
 - Blue star icon ⭐ appears (celebration!)
 - All 4 dots show **solid green**
 - Label shows "REFLECT"
@@ -107,45 +156,68 @@ After completing **4 consecutive pomodoros**:
 ### Visual Progress Tracking
 
 ```
-Cycle Progress:
-○ ○ ○ ○  →  Start
-● ○ ○ ○  →  1 pomodoro complete
-● ● ○ ○  →  2 pomodoros complete
-● ● ● ○  →  3 pomodoros complete
-● ● ● ●  →  4 pomodoros complete → ⭐ REFLECT
+Full Cycle Flow:
+○ ○ ○ ○  →  Start (all gray)
+🟡○ ○ ○  →  Pomodoro 1 complete, break in progress (yellow)
+🟢○ ○ ○  →  Break 1 complete, full cycle done (green)
+🟢🟡○ ○  →  Pomodoro 2 complete, break in progress
+🟢🟢○ ○  →  Break 2 complete, 2 full cycles done
+🟢🟢🟡○  →  Pomodoro 3 complete, break in progress
+🟢🟢🟢○  →  Break 3 complete, 3 full cycles done
+🟢🟢🟢🟡  →  Pomodoro 4 complete, break in progress
+🟢🟢🟢🟢  →  Break 4 complete → ⭐ REFLECT (10 min minimum)
 ```
 
-### Break Transition Example
+### Detailed Example (2nd Cycle)
 
 ```
-Normal state:        ● ● ○ ○  (2 completed)
-Pause for break:     ● ● ○ ○  PAUSE
-+15s paused:         🟡● ○ ○  (yellow overlay)
-+30s paused:         🟡🟡 ○ ○  
-+45s paused:         🟡🟡🟡 ○  
-+60s paused:         🟡🟡🟡🟡  BREAK (blinking)
-Resume from break:   🟡🟡🟡🟡  FOCUS
-+15s resumed:        🟡🟡🟡 ○  
-+30s resumed:        🟡🟡 ○ ○  
-+45s resumed:        🟡 ● ○ ○  (green restored!)
-+60s resumed:        ● ● ○ ○  (back to normal)
+State                   Dots        Phase       Auto-Behavior
+─────────────────────   ─────────   ─────────   ──────────────────────────
+1 cycle complete        🟢○○○       FOCUS       Ready to start Pomodoro 2
+Pomodoro 2 running      🟢○○○       FOCUS       Timer counting down
+Pomodoro 2 finishes     🟢🟡○○       BREAK       Auto-starts if enabled*
+Break 2 running         🟢🟡○○       BREAK       Taking rest
+Break 2 finishes        🟢🟢○○       FOCUS       Auto-starts if enabled**
+Ready for Pomodoro 3    🟢🟢○○       FOCUS       Press START
+
+* Auto-start Breaks setting in OPTIONS
+** Auto-start Pomodoros setting in OPTIONS
 ```
 
 ### Why This Works
 
-1. **Visual Progress** — Green dots show your achievements
-2. **Gentle Transitions** — 60-second warm-up/cool-down prevents abrupt context switches
-3. **Enforced Breaks** — Auto-transition to break after 60s of pause
-4. **Celebration** — Blue star rewards completing 4-pomodoro cycles
+1. **Visual Progress** — Three states (gray/yellow/green) show clear status
+2. **Flexible Auto-Start** — Control break and pomodoro auto-start independently
+3. **Clear Feedback** — Yellow during break, green when fully complete
+4. **Celebration** — Blue star rewards completing 4 full cycles
 5. **Mandatory Rest** — 10-minute reflection prevents burnout
+6. **Keyboard-Driven** — Full navigation with arrow keys, space, tab, and escape
 
 ### Configurable Settings
 
-- **Focus duration** (default: 25 min)
-- **Short break** (default: 5 min)
-- **Long break** (default: 15 min)
-- **Pomodoros per cycle** (default: 4)
-- **Reflection minimum** (default: 10 min)
+**DURATION Tab:**
+- **Focus duration** (default: 25 min, range: 1-120 min)
+- **Short break** (default: 5 min, range: 1-30 min)
+- **Long break** (default: 15 min, range: 5-60 min)
+- **Pomodoros per cycle** (default: 4, range: 1-10)
+
+**OPTIONS Tab:**
+- **Sound** (notification sounds)
+- **Auto-start Breaks** (start break automatically after pomodoro)
+- **Auto-start Pomodoros** (start next pomodoro automatically after break)
+- **Always on Top** (keep timer window on top)
+
+**NOTIFICATIONS Tab:**
+- **Desktop Notifications** (system notifications for phase changes)
+
+**Keyboard Shortcuts:**
+- `ALT+SHIFT+O` — Open Options
+- `ALT+SHIFT+P` — Toggle window visibility
+- `ESC` — Save settings and return to timer
+- `TAB` / `SHIFT+TAB` — Cycle through settings tabs
+- `↑` / `↓` — Navigate settings options
+- `←` / `→` — Adjust durations or navigate timer buttons
+- `SPACE` — Activate button or toggle setting
 
 📖 **Full Specification:** [docs/Pomodoro_Progress_Dots_Specification.md](docs/Pomodoro_Progress_Dots_Specification.md)
 
@@ -153,7 +225,7 @@ Resume from break:   🟡🟡🟡🟡  FOCUS
 - ✅ **All UI components** — Reference for design
 - ✅ **Notes Capture** — Quick note-taking with screenshot
 - ✅ **SQLite Persistence** — Local database for sessions
-- ❌ **Click-Through** — Failed due to platform channel crashes
+- ✅ **Click-Through** — Successfully implemented using Electron framework, dropping Flutter.
 
 ### Next Steps (Phase 2) 📋
 - Calendar & Task Management with drag-drop scheduling
@@ -254,20 +326,21 @@ npm run dev
 - [x] System tray integration
 - [x] Position persistence
 
-### Phase 2: Core Features 🚧 95% Complete
+### Phase 2: Core Features ✅ COMPLETE!
 - [x] Progress ring animation
 - [x] Phase icons and state visualization (eye, coffee, star)
-- [x] **Full Pomodoro implementation** with progress tracking
-- [x] **Green dots** for completed pomodoros (0-4)
-- [x] **Break warm-up** (60s yellow dots L→R)
-- [x] **Break cool-down** (60s yellow dots R→L)
-- [x] **Reflection period** with blue star after 4 pomodoros
-- [x] Pause/break dot animations
+- [x] **Full Pomodoro implementation** with visual progress tracking
+- [x] **Progress dots** (gray → yellow → green progression)
+- [x] **Auto-start controls** (breaks and pomodoros configurable)
+- [x] **Reflection period** with blue star after 4 full cycles
 - [x] Independent toolbar window
 - [x] IPC communication
-- [x] Settings panel (swipeable)
+- [x] **Settings panel** (inline 3-tab: Duration/Options/Notifications)
+- [x] **Keyboard navigation** (complete keyboard-driven operation)
+- [x] **Visual focus indicators** (glowing outlines for keyboard nav)
 - [x] Timer presets (25/5, 50/10)
-- [ ] **NEXT:** App icon
+- [x] Settings persistence (localStorage + IPC)
+- [ ] **NEXT:** App icon and packaging
 
 ### Phase 3: Polish & Features ⏳ Upcoming
 - [ ] SQLite database (sessions, notes, settings)
@@ -293,11 +366,12 @@ npm run dev
 | Timer Bubble | ✅ | 280×340 rounded square |
 | Progress Ring | ✅ | SVG animation |
 | Phase Icons | ✅ | Eye, coffee, star ⭐ |
-| **Pomodoro Progress** | ✅ | **Green dots track completions** |
-| **Break Warm-Up** | ✅ | **60s yellow fill L→R** |
-| **Break Cool-Down** | ✅ | **60s yellow clear R→L** |
-| **Reflection Period** | ✅ | **Blue star after 4 pomodoros** |
-| Dot Animations | ✅ | Pause/break/cooldown |
+| **Pomodoro Progress** | ✅ | **3-state dots (gray/yellow/green)** |
+| **Auto-start Breaks** | ✅ | **Configurable break auto-start** |
+| **Auto-start Pomodoros** | ✅ | **Configurable pomodoro auto-start** |
+| **Reflection Period** | ✅ | **Blue star after 4 full cycles** |
+| **Keyboard Navigation** | ✅ | **Complete keyboard-driven UI** |
+| **Visual Focus Indicators** | ✅ | **Glowing outlines for navigation** |
 | Toolbar | ✅ | Independent window |
 | Global Hotkeys | ✅ | ALT+SHIFT+P/C/S/N |
 | System Tray | ✅ | Background operation |
@@ -352,5 +426,5 @@ For questions or collaboration: [Open an issue](../../issues)
 
 ---
 
-*Last Updated: October 11, 2025*  
-*Current Focus: Electron Migration (Click-Through Priority)*
+*Last Updated: October 12, 2025*  
+*Current Focus: Phase 2 Complete - Auto-Start & Progress Tracking Implemented!*
