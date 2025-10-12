@@ -469,6 +469,7 @@ function updatePauseDuration() {
   if (pauseElapsed >= 120) {
     if (!state.isBlinking) {
       console.log('[Pause-Break] Entering BLINKING phase (2 minutes pause reached)');
+      state.isInWarmUp = false; // Exit warm-up phase
       state.isBlinking = true;
       state.warmUpProgress = 4; // All 4 dots
       updateUI();
