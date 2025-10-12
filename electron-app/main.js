@@ -5,27 +5,13 @@
 const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 
-// Persistent storage (lazy init to avoid constructor issues)
-let store;
-function getStore() {
-  if (!store) {
-    try {
-      const Store = require('electron-store');
-      store = new Store();
-    } catch (error) {
-      console.error('[Electron] Failed to load electron-store:', error);
-      // Fallback to in-memory storage
-      store = {
-        get: (key, defaultValue) => defaultValue,
-        set: (key, value) => {},
-      };
-    }
-  }
-  return store;
-}
+// Persistent storage with electron-store v8 (stable CommonJS support)
+const Store = require('electron-store');
+const store = new Store();
 
 let mainWindow;
 let toolbarWindow;
+let settingsWindow;
 let tray;
 let clickThroughEnabled = false; // Start with click-through DISABLED for full interactivity
 
@@ -37,7 +23,7 @@ function createWindow() {
   console.log('[Electron] Creating main window...');
   
   // Load saved position or use defaults
-  const savedPosition = getStore().get('windowPosition', { x: null, y: null });
+  const savedPosition = store.get('windowPosition', { x: null, y: null });
   const windowOptions = {
     width: 280, // Just the timer
     height: 280,
@@ -48,6 +34,7 @@ function createWindow() {
     skipTaskbar: false, // Show in taskbar for now (TODO: make configurable)
     backgroundColor: '#202020', // Match the bubble background
     roundedCorners: true, // Enable rounded corners on Windows
+    icon: path.join(__dirname, 'assets', 'icons', 'icon-256.png'), // App icon
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false,
@@ -78,7 +65,7 @@ function createWindow() {
   mainWindow.on('moved', () => {
     if (!mainWindow) return;
     const position = mainWindow.getPosition();
-    getStore().set('windowPosition', { x: position[0], y: position[1] });
+    store.set('windowPosition', { x: position[0], y: position[1] });
     console.log('[Electron] Saved window position:', position);
   });
 
@@ -97,7 +84,7 @@ function createToolbarWindow() {
   console.log('[Electron] Creating toolbar window...');
   
   // Load saved toolbar position or calculate default (above main window)
-  const savedToolbarPosition = getStore().get('toolbarPosition', { x: null, y: null });
+  const savedToolbarPosition = store.get('toolbarPosition', { x: null, y: null });
   const toolbarOptions = {
     width: 160,
     height: 52,
@@ -133,7 +120,7 @@ function createToolbarWindow() {
   toolbarWindow.on('moved', () => {
     if (!toolbarWindow) return;
     const position = toolbarWindow.getPosition();
-    getStore().set('toolbarPosition', { x: position[0], y: position[1] });
+    store.set('toolbarPosition', { x: position[0], y: position[1] });
   });
   
   // Don't quit when toolbar is closed, just hide it
@@ -143,6 +130,40 @@ function createToolbarWindow() {
   });
   
   console.log('[Electron] Toolbar window created successfully');
+}
+
+function createSettingsWindow() {
+  console.log('[Electron] Creating settings window...');
+  
+  // Don't create if already exists
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    settingsWindow.focus();
+    return;
+  }
+  
+  settingsWindow = new BrowserWindow({
+    width: 400,
+    height: 500,
+    frame: false,
+    transparent: false,
+    alwaysOnTop: true,
+    resizable: false,
+    backgroundColor: '#282828',
+    parent: mainWindow, // Modal behavior
+    modal: true,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false,
+    }
+  });
+  
+  settingsWindow.loadFile('settings.html');
+  
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+  
+  console.log('[Electron] Settings window created');
 }
 
 /* ============================================
@@ -188,8 +209,9 @@ function toggleClickThrough() {
 function createTray() {
   console.log('[Electron] Creating system tray...');
   
-  // Create a simple icon (TODO: use actual icon file)
-  const trayIcon = nativeImage.createEmpty();
+  // Use actual icon file
+  const iconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
+  const trayIcon = nativeImage.createFromPath(iconPath);
   
   try {
     tray = new Tray(trayIcon);
@@ -224,7 +246,7 @@ function createTray() {
           if (mainWindow) {
             mainWindow.center();
             const position = mainWindow.getPosition();
-            getStore().set('windowPosition', { x: position[0], y: position[1] });
+            store.set('windowPosition', { x: position[0], y: position[1] });
           }
         }
       },
@@ -275,6 +297,32 @@ ipcMain.on('toolbar-action', (event, action) => {
 ipcMain.on('state-update', (event, state) => {
   if (!toolbarWindow || !toolbarWindow.webContents) return;
   toolbarWindow.webContents.send('timer-state-update', state);
+});
+
+// Settings IPC handlers
+ipcMain.on('settings-open', () => {
+  createSettingsWindow();
+});
+
+ipcMain.on('settings-get', (event) => {
+  const settings = store.get('settings', {
+    workMinutes: 25,
+    shortBreakMinutes: 5,
+    longBreakMinutes: 15,
+    cycleLength: 4,
+    soundEnabled: true,
+  });
+  event.reply('settings-data', settings);
+});
+
+ipcMain.on('settings-save', (event, settings) => {
+  console.log('[IPC] Saving settings:', settings);
+  store.set('settings', settings);
+  
+  // Notify main window to apply settings
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('settings-updated', settings);
+  }
 });
 
 /* ============================================

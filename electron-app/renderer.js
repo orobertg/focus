@@ -213,9 +213,27 @@ function handleReset() {
 }
 
 function handleSettings() {
-  console.log('[Settings] Clicked (TODO: Implement settings panel)');
-  // TODO: Open settings panel
+  console.log('[Settings] Opening settings panel');
+  ipcRenderer.send('settings-open');
 }
+
+// Listen for settings updates
+ipcRenderer.on('settings-updated', (event, settings) => {
+  console.log('[Settings] Settings updated:', settings);
+  // Apply new settings to timer
+  state.config.workMinutes = settings.workMinutes;
+  state.config.shortBreakMinutes = settings.shortBreakMinutes;
+  state.config.longBreakMinutes = settings.longBreakMinutes;
+  state.config.cycleLength = settings.cycleLength;
+  state.config.soundEnabled = settings.soundEnabled;
+  
+  // If timer is idle, reset to new work duration
+  if (state.runState === 'idle') {
+    state.millisRemaining = settings.workMinutes * 60 * 1000;
+    state.millisTotal = settings.workMinutes * 60 * 1000;
+    updateUI();
+  }
+});
 
 /* ============================================
    Rust Core Integration
