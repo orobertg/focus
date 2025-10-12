@@ -544,3 +544,43 @@ body.debug-mode::before {
   z-index: 9999;
 }
 
+/* ============================================
+   Collapsed Handle (Docking Feature)
+   ============================================ */
+
+.collapsed-handle {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgb(32, 32, 32);
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  z-index: 10000;
+}
+
+.collapsed-handle:hover {
+  background: rgb(45, 45, 45);
+}
+
+.handle-grip {
+  font-size: 24px;
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: bold;
+  letter-spacing: 2px;
+  user-select: none;
+}
+
+.collapsed-handle-top .handle-grip,
+.collapsed-handle-bottom .handle-grip {
+  transform: rotate(90deg);
+}
+
+.collapsed-handle-left .handle-grip,
+.collapsed-handle-right .handle-grip {
+  /* Vertical orientation - no rotation needed */
+}
+

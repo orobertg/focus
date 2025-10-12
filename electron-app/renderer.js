@@ -1043,6 +1043,65 @@ function loadSettings() {
 }
 
 /* ============================================
+   Window Collapse/Expand Handling
+   ============================================ */
+
+// Listen for collapse/expand events from main process
+ipcRenderer.on('window-collapsed', (event, data) => {
+  console.log('[Window] Window collapsed to', data.edge);
+  showCollapsedHandle(data.edge);
+});
+
+ipcRenderer.on('window-expanded', () => {
+  console.log('[Window] Window expanded');
+  hideCollapsedHandle();
+});
+
+function showCollapsedHandle(edge) {
+  // Hide main content
+  if (elements.panelsContainer) {
+    elements.panelsContainer.style.display = 'none';
+  }
+  
+  // Show collapsed handle
+  let handle = document.getElementById('collapsed-handle');
+  if (!handle) {
+    handle = document.createElement('div');
+    handle.id = 'collapsed-handle';
+    handle.innerHTML = '<div class="handle-grip">⋮⋮⋮</div>';
+    document.body.appendChild(handle);
+  }
+  
+  // Style based on edge
+  handle.className = 'collapsed-handle collapsed-handle-' + edge;
+  handle.style.display = 'flex';
+}
+
+function hideCollapsedHandle() {
+  // Show main content
+  if (elements.panelsContainer) {
+    elements.panelsContainer.style.display = 'block';
+  }
+  
+  // Hide collapsed handle
+  const handle = document.getElementById('collapsed-handle');
+  if (handle) {
+    handle.style.display = 'none';
+  }
+}
+
+// Add double-click handler to window
+document.addEventListener('dblclick', (event) => {
+  // Don't trigger on buttons or inputs
+  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') {
+    return;
+  }
+  
+  console.log('[Window] Double-click detected');
+  ipcRenderer.send('window-double-click');
+});
+
+/* ============================================
    Start Application
    ============================================ */
 

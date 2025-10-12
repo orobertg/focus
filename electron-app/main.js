@@ -2,18 +2,61 @@
    Focus Bubbles - Main Process (Electron)
    ============================================ */
 
-const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } = require('electron');
+const { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain, dialog } = require('electron');
 const path = require('path');
 
 // Persistent storage with electron-store v8 (stable CommonJS support)
 const Store = require('electron-store');
 const store = new Store();
 
+/* ============================================
+   Single Instance Lock
+   ============================================ */
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  console.log('[Electron] Another instance is already running. Exiting...');
+  
+  // Show warning dialog before quitting
+  dialog.showErrorBox(
+    'Focus App Already Running',
+    'Focus app is already running.\n\nPlease check your system tray or taskbar.'
+  );
+  
+  app.quit();
+} else {
+  // Handle second-instance attempt - focus the existing window
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    console.log('[Electron] Second instance detected. Focusing existing window...');
+    
+    // Focus the main window if it exists
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      }
+      if (!mainWindow.isVisible()) {
+        mainWindow.show();
+      }
+      mainWindow.focus();
+      
+      // Also ensure always-on-top if enabled
+      if (currentSettings && currentSettings.alwaysOnTop) {
+        ensureAlwaysOnTop();
+      }
+    }
+  });
+}
+
 let mainWindow;
 let toolbarWindow;
 let settingsWindow;
 let tray;
 let clickThroughEnabled = false; // Start with click-through DISABLED for full interactivity
+let currentSettings = null; // Store current settings including alwaysOnTop
+let isDocked = false; // Track if window is docked
+let dockedEdge = null; // Track which edge: 'top', 'bottom', 'left', 'right'
+let isCollapsed = false; // Track if window is collapsed when docked
 
 /* ============================================
    Window Creation
@@ -24,12 +67,23 @@ function createWindow() {
   
   // Load saved position or use defaults
   const savedPosition = store.get('windowPosition', { x: null, y: null });
+  // Load settings to check alwaysOnTop preference
+  const settings = store.get('settings', {
+    workMinutes: 25,
+    shortBreakMinutes: 5,
+    longBreakMinutes: 15,
+    cycleLength: 4,
+    soundEnabled: true,
+    alwaysOnTop: false, // Default to OFF
+  });
+  currentSettings = settings;
+  
   const windowOptions = {
     width: 280,
     height: 340, // Increased to fit settings panel without scrollbar
     frame: false,
     transparent: false, // Solid window, no transparency
-    alwaysOnTop: true,
+    alwaysOnTop: settings.alwaysOnTop === true, // Respect user setting
     resizable: false,
     skipTaskbar: false, // Show in taskbar for now (TODO: make configurable)
     backgroundColor: '#202020', // Match the bubble background
@@ -74,6 +128,10 @@ function createWindow() {
   // Save window position when moved and re-assert always-on-top
   mainWindow.on('moved', () => {
     if (!mainWindow) return;
+    
+    // Check if window should snap to edge
+    checkAndSnapToEdge();
+    
     const position = mainWindow.getPosition();
     store.set('windowPosition', { x: position[0], y: position[1] });
     console.log('[Electron] Saved window position:', position);
@@ -101,7 +159,7 @@ function createToolbarWindow() {
     height: 52,
     frame: false,
     transparent: false, // Solid window, no transparency
-    alwaysOnTop: true,
+    alwaysOnTop: currentSettings?.alwaysOnTop === true, // Respect user setting
     resizable: false,
     skipTaskbar: true, // Don't show toolbar in taskbar
     backgroundColor: '#202020', // Match the toolbar background
@@ -165,10 +223,10 @@ function createSettingsWindow() {
   
   settingsWindow = new BrowserWindow({
     width: 400,
-    height: 500,
+    height: 550, // Increased for new window behavior section
     frame: false,
     transparent: false,
-    alwaysOnTop: true,
+    alwaysOnTop: true, // Settings always on top when open
     resizable: false,
     backgroundColor: '#282828',
     parent: mainWindow, // Modal behavior
@@ -200,13 +258,18 @@ function createSettingsWindow() {
 let ensureAlwaysOnTopTimeout = null;
 
 function ensureAlwaysOnTop() {
+  // Only enforce if the setting is enabled
+  if (!currentSettings || currentSettings.alwaysOnTop !== true) {
+    return;
+  }
+  
   // Debounce to prevent flickering from rapid calls
   if (ensureAlwaysOnTopTimeout) {
     clearTimeout(ensureAlwaysOnTopTimeout);
   }
   
   ensureAlwaysOnTopTimeout = setTimeout(() => {
-    // Ensure all windows stay on top - only if visible to avoid unnecessary calls
+    // Ensure all windows stay on top - only if visible and setting enabled
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
     }
@@ -218,6 +281,171 @@ function ensureAlwaysOnTop() {
     }
     ensureAlwaysOnTopTimeout = null;
   }, 200); // 200ms debounce - enough to prevent flicker but responsive
+}
+
+function applyAlwaysOnTopSetting(enabled) {
+  console.log('[Electron] Applying always-on-top setting:', enabled);
+  
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setAlwaysOnTop(enabled === true, 'pop-up-menu');
+  }
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    toolbarWindow.setAlwaysOnTop(enabled === true, 'pop-up-menu');
+  }
+}
+
+/* ============================================
+   Docking System
+   ============================================ */
+
+let originalWindowSize = null; // Store size before collapse
+
+function checkAndSnapToEdge() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  
+  const { screen } = require('electron');
+  const snapThreshold = 30; // pixels from edge to trigger snap
+  
+  const windowBounds = mainWindow.getBounds();
+  const display = screen.getDisplayNearestPoint({ x: windowBounds.x, y: windowBounds.y });
+  const workArea = display.workArea; // Excludes taskbar area
+  
+  let snapped = false;
+  let newX = windowBounds.x;
+  let newY = windowBounds.y;
+  
+  // Check proximity to each edge
+  const distanceToTop = windowBounds.y - workArea.y;
+  const distanceToLeft = windowBounds.x - workArea.x;
+  const distanceToRight = (workArea.x + workArea.width) - (windowBounds.x + windowBounds.width);
+  const distanceToBottom = (workArea.y + workArea.height) - (windowBounds.y + windowBounds.height);
+  
+  // Snap to top
+  if (distanceToTop >= 0 && distanceToTop < snapThreshold) {
+    newY = workArea.y;
+    dockedEdge = 'top';
+    isDocked = true;
+    snapped = true;
+    console.log('[Docking] Snapped to TOP');
+  }
+  // Snap to left
+  else if (distanceToLeft >= 0 && distanceToLeft < snapThreshold) {
+    newX = workArea.x;
+    dockedEdge = 'left';
+    isDocked = true;
+    snapped = true;
+    console.log('[Docking] Snapped to LEFT');
+  }
+  // Snap to right
+  else if (distanceToRight >= 0 && distanceToRight < snapThreshold) {
+    newX = workArea.x + workArea.width - windowBounds.width;
+    dockedEdge = 'right';
+    isDocked = true;
+    snapped = true;
+    console.log('[Docking] Snapped to RIGHT');
+  }
+  // Snap to bottom
+  else if (distanceToBottom >= 0 && distanceToBottom < snapThreshold) {
+    newY = workArea.y + workArea.height - windowBounds.height;
+    dockedEdge = 'bottom';
+    isDocked = true;
+    snapped = true;
+    console.log('[Docking] Snapped to BOTTOM');
+  }
+  // Not near any edge - undock
+  else {
+    if (isDocked) {
+      console.log('[Docking] Undocked from', dockedEdge);
+      isDocked = false;
+      dockedEdge = null;
+      if (isCollapsed) {
+        expandWindow(); // Auto-expand when undocked
+      }
+    }
+  }
+  
+  // Apply snap position
+  if (snapped) {
+    mainWindow.setBounds({ x: newX, y: newY, width: windowBounds.width, height: windowBounds.height });
+  }
+  
+  return snapped;
+}
+
+function toggleCollapse() {
+  if (!isDocked) {
+    console.log('[Collapse] Cannot collapse - window not docked');
+    return;
+  }
+  
+  if (isCollapsed) {
+    expandWindow();
+  } else {
+    collapseWindow();
+  }
+}
+
+function collapseWindow() {
+  if (!mainWindow || mainWindow.isDestroyed() || !isDocked) return;
+  
+  console.log('[Collapse] Collapsing window...');
+  
+  const currentBounds = mainWindow.getBounds();
+  originalWindowSize = { width: currentBounds.width, height: currentBounds.height };
+  
+  const handleSize = 32; // Size of the collapsed handle
+  let newBounds = { ...currentBounds };
+  
+  // Collapse based on docked edge
+  if (dockedEdge === 'top' || dockedEdge === 'bottom') {
+    newBounds.height = handleSize;
+  } else if (dockedEdge === 'left' || dockedEdge === 'right') {
+    newBounds.width = handleSize;
+  }
+  
+  mainWindow.setBounds(newBounds);
+  isCollapsed = true;
+  
+  // Notify renderer to show collapsed UI
+  if (mainWindow.webContents) {
+    mainWindow.webContents.send('window-collapsed', { edge: dockedEdge });
+  }
+  
+  console.log('[Collapse] Window collapsed to', dockedEdge, 'edge');
+}
+
+function expandWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  
+  console.log('[Collapse] Expanding window...');
+  
+  if (!originalWindowSize) {
+    originalWindowSize = { width: 280, height: 340 }; // Default size
+  }
+  
+  const currentBounds = mainWindow.getBounds();
+  let newBounds = { ...currentBounds };
+  
+  // Restore original size
+  newBounds.width = originalWindowSize.width;
+  newBounds.height = originalWindowSize.height;
+  
+  // Adjust position to keep it docked to the same edge
+  if (dockedEdge === 'right') {
+    newBounds.x = currentBounds.x - (originalWindowSize.width - currentBounds.width);
+  } else if (dockedEdge === 'bottom') {
+    newBounds.y = currentBounds.y - (originalWindowSize.height - currentBounds.height);
+  }
+  
+  mainWindow.setBounds(newBounds);
+  isCollapsed = false;
+  
+  // Notify renderer to show expanded UI
+  if (mainWindow.webContents) {
+    mainWindow.webContents.send('window-expanded');
+  }
+  
+  console.log('[Collapse] Window expanded');
 }
 
 function enableClickThrough() {
@@ -359,6 +587,15 @@ ipcMain.on('state-update', (event, state) => {
   toolbarWindow.webContents.send('timer-state-update', state);
 });
 
+// Handle double-click for collapse/expand
+ipcMain.on('window-double-click', () => {
+  console.log('[IPC] Double-click received, isDocked:', isDocked, 'isCollapsed:', isCollapsed);
+  
+  if (isDocked) {
+    toggleCollapse();
+  }
+});
+
 // Settings IPC handlers
 ipcMain.on('settings-open', () => {
   createSettingsWindow();
@@ -371,13 +608,19 @@ ipcMain.on('settings-get', (event) => {
     longBreakMinutes: 15,
     cycleLength: 4,
     soundEnabled: true,
+    alwaysOnTop: false, // Default to OFF
   });
+  currentSettings = settings;
   event.reply('settings-data', settings);
 });
 
 ipcMain.on('settings-save', (event, settings) => {
   console.log('[IPC] Saving settings:', settings);
   store.set('settings', settings);
+  currentSettings = settings;
+  
+  // Apply always-on-top setting immediately
+  applyAlwaysOnTopSetting(settings.alwaysOnTop);
   
   // Notify main window to apply settings
   if (mainWindow && mainWindow.webContents) {

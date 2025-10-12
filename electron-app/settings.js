@@ -19,6 +19,7 @@ const inputs = {
   longBreakMinutes: document.getElementById('long-break'),
   cycleLength: document.getElementById('cycles'),
   soundEnabled: document.getElementById('sound-enabled'),
+  alwaysOnTop: document.getElementById('always-on-top'),
 };
 
 /* ============================================
@@ -38,6 +39,7 @@ ipcRenderer.on('settings-data', (event, settings) => {
     inputs.longBreakMinutes.value = settings.longBreakMinutes || 15;
     inputs.cycleLength.value = settings.cycleLength || 4;
     inputs.soundEnabled.checked = settings.soundEnabled !== false; // Default true
+    inputs.alwaysOnTop.checked = settings.alwaysOnTop === true; // Default false
   }
 });
 
@@ -56,6 +58,7 @@ function handleSave(event) {
     longBreakMinutes: parseInt(inputs.longBreakMinutes.value, 10),
     cycleLength: parseInt(inputs.cycleLength.value, 10),
     soundEnabled: inputs.soundEnabled.checked,
+    alwaysOnTop: inputs.alwaysOnTop.checked,
   };
   
   // Validate
