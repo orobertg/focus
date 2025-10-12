@@ -9,16 +9,34 @@ const rustCore = require('./core_stub.js');
 
 // State Management
 const state = {
-  phase: 'idle', // 'idle', 'focus', 'pause', 'break'
+  phase: 'idle', // 'idle', 'focus', 'pause', 'break', 'reflect'
   runState: 'idle', // 'idle', 'running', 'paused'
   millisRemaining: 25 * 60 * 1000, // 25 minutes default
   millisTotal: 25 * 60 * 1000,
   pauseStartTime: null,
   pauseDuration: 0,
-  completedPomodoros: 0,
+  
+  // Pomodoro tracking
+  completedPomodoros: 0, // 0-4, tracks green dots
+  pomodorosCycleCount: 0, // Total in current cycle
+  
+  // Break warm-up (pause → break transition)
+  pauseWarmUpProgress: 0, // 0-4, yellow dots filling during pause
+  warmUpIntervalId: null,
+  
+  // Break state
   isInBreakState: false,
+  
+  // Break cool-down (break → focus transition)
   isInCooldown: false,
   cooldownStartTime: null,
+  cooldownProgress: 0, // 0-4, yellow dots clearing right-to-left
+  cooldownIntervalId: null,
+  
+  // Reflection period (after 4 pomodoros)
+  inReflectionPeriod: false,
+  reflectionStartTime: null,
+  reflectionMinMinutes: 10,
   
   // Configuration
   config: {
@@ -26,6 +44,8 @@ const state = {
     shortBreakMinutes: 5,
     longBreakMinutes: 15,
     cycleLength: 4, // Long break after 4 pomodoros
+    warmUpSeconds: 60, // Time to transition to break (15s per dot)
+    coolDownSeconds: 60, // Time to transition from break (15s per dot)
   }
 };
 
@@ -85,13 +105,59 @@ function init() {
   elements.resetBtn.addEventListener('click', handleReset);
   elements.settingsBtn.addEventListener('click', () => showSettings());
   
-  // Close settings button - use event delegation to ensure it works
+  // Close settings button - use multiple strategies to ensure it works
+  
+  // Strategy 1: Event delegation on document (always works)
   document.addEventListener('click', (e) => {
-    if (e.target.closest('#close-settings-btn')) {
+    const closeBtn = e.target.closest('#close-settings-btn');
+    if (closeBtn) {
       console.log('[Settings] Close button clicked via delegation');
+      e.preventDefault();
+      e.stopPropagation();
       hideSettings();
     }
-  });
+  }, true); // Use capture phase for better reliability
+  
+  // Strategy 2: Direct listener on settings panel (catches bubbled events)
+  const settingsPanel = document.getElementById('settings-panel');
+  if (settingsPanel) {
+    settingsPanel.addEventListener('click', (e) => {
+      if (e.target.id === 'close-settings-btn' || e.target.closest('#close-settings-btn')) {
+        console.log('[Settings] Close button clicked via settings panel');
+        e.preventDefault();
+        e.stopPropagation();
+        hideSettings();
+      }
+    });
+  }
+  
+  // Strategy 3: Direct listener with immediate and delayed attachment
+  const attachDirectListener = () => {
+    const closeBtnElement = document.getElementById('close-settings-btn');
+    if (closeBtnElement) {
+      // Remove any existing listeners to avoid duplicates
+      const newCloseBtn = closeBtnElement.cloneNode(true);
+      closeBtnElement.parentNode.replaceChild(newCloseBtn, closeBtnElement);
+      
+      // Attach new listener
+      newCloseBtn.addEventListener('click', (e) => {
+        console.log('[Settings] Close button clicked directly');
+        e.preventDefault();
+        e.stopPropagation();
+        hideSettings();
+      }, true);
+      
+      console.log('[Settings] Close button listener attached/refreshed');
+    } else {
+      console.error('[Settings] Close button element not found!');
+    }
+  };
+  
+  // Attach immediately
+  attachDirectListener();
+  
+  // Also attach after a delay as backup
+  setTimeout(attachDirectListener, 100);
   
   // Set up settings tabs
   elements.tabDuration.addEventListener('click', () => switchTab('duration'));
@@ -167,6 +233,25 @@ function handleStartPause() {
 function startTimer() {
   console.log('[Timer] Starting timer');
   
+  // Check if in reflection period
+  if (state.inReflectionPeriod) {
+    const reflectionElapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60; // minutes
+    if (reflectionElapsed < state.reflectionMinMinutes) {
+      const remaining = Math.ceil(state.reflectionMinMinutes - reflectionElapsed);
+      console.log(`[Timer] Still in reflection period. Please wait ${remaining} more minutes.`);
+      alert(`Reflection period in progress.\n\nPlease take a ${remaining}-minute break before starting a new cycle.`);
+      return;
+    } else {
+      // End reflection period and start new cycle
+      console.log('[Timer] Reflection period complete. Starting new cycle.');
+      state.inReflectionPeriod = false;
+      state.reflectionStartTime = null;
+      state.completedPomodoros = 0;
+      state.pomodorosCycleCount = 0;
+      state.phase = 'focus';
+    }
+  }
+  
   try {
     let snapshot;
     
@@ -187,17 +272,20 @@ function startTimer() {
       updateStateFromSnapshot(snapshot);
     }
     
-    // If resuming from break state, reset break indicators
+    // If resuming from break state, start cool-down
     if (state.isInBreakState) {
       state.isInBreakState = false;
       state.isInCooldown = true;
       state.cooldownStartTime = Date.now();
+      state.cooldownProgress = 0;
+      startCoolDown();
       stopBreakBlink();
     }
     
     // Clear pause tracking
     state.pauseStartTime = null;
     state.pauseDuration = 0;
+    state.pauseWarmUpProgress = 0;
     
     // Start ticker
     if (timerInterval) clearInterval(timerInterval);
@@ -359,11 +447,22 @@ function onPhaseComplete() {
   
   if (state.phase === 'focus') {
     state.completedPomodoros++;
-    console.log('[Timer] Completed pomodoros:', state.completedPomodoros);
+    state.pomodorosCycleCount++;
+    console.log(`[Timer] Completed pomodoros: ${state.completedPomodoros}/4 (cycle: ${state.pomodorosCycleCount})`);
     
-    // Transition to break (just set to idle for now, user can start break manually)
+    // Check if we've completed 4 pomodoros
+    if (state.completedPomodoros >= 4) {
+      console.log('[Timer] 4 pomodoros completed! Entering REFLECT period');
+      state.inReflectionPeriod = true;
+      state.reflectionStartTime = Date.now();
+      state.phase = 'reflect';
+      state.completedPomodoros = 4; // Keep at 4 to show all green dots
+    } else {
+      state.phase = 'focus'; // Stay in focus phase for next pomodoro
+    }
+    
+    // Stop timer
     state.runState = 'idle';
-    state.phase = 'idle';
     state.millisRemaining = state.config.workMinutes * 60 * 1000;
     state.millisTotal = state.config.workMinutes * 60 * 1000;
     
@@ -382,12 +481,20 @@ function updatePauseDuration() {
   
   state.pauseDuration = Math.floor((Date.now() - state.pauseStartTime) / 1000);
   
-  // Transition to break after 60 seconds
+  // Update warm-up progress (fill dots every 15 seconds)
+  const warmUpProgress = Math.min(Math.floor(state.pauseDuration / 15), 4);
+  if (warmUpProgress !== state.pauseWarmUpProgress) {
+    state.pauseWarmUpProgress = warmUpProgress;
+    console.log(`[Timer] Warm-up progress: ${warmUpProgress}/4 dots`);
+  }
+  
+  // Transition to break after 60 seconds (all 4 dots yellow)
   if (state.pauseDuration >= 60 && !state.isInBreakState) {
     console.log('[Timer] Transitioning to BREAK state');
     state.isInBreakState = true;
     state.phase = 'break';
-    startBreakBlink();
+    state.pauseWarmUpProgress = 0; // Reset warm-up
+    // Note: dots will blink via CSS, no need for interval
   }
   
   updateUI();
@@ -416,6 +523,54 @@ function stopBreakBlink() {
 /* ============================================
    Cooldown (after resuming from break)
    ============================================ */
+
+function startCoolDown() {
+  console.log('[Timer] Starting cool-down sequence');
+  
+  // Clear any existing cool-down interval
+  if (state.cooldownIntervalId) {
+    clearInterval(state.cooldownIntervalId);
+  }
+  
+  // Set up interval to clear dots every 15 seconds (right to left)
+  state.cooldownIntervalId = setInterval(() => {
+    if (!state.isInCooldown) {
+      stopCoolDown();
+      return;
+    }
+    
+    const elapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
+    const newProgress = Math.min(Math.floor(elapsed / 15), 4);
+    
+    if (newProgress !== state.cooldownProgress) {
+      state.cooldownProgress = newProgress;
+      console.log(`[Timer] Cool-down progress: ${newProgress}/4 dots cleared`);
+      
+      // After 60 seconds, end cool-down
+      if (newProgress >= 4) {
+        console.log('[Timer] Cool-down complete');
+        stopCoolDown();
+      }
+      
+      updateUI();
+    }
+  }, 250); // Check 4 times per second
+}
+
+function stopCoolDown() {
+  console.log('[Timer] Stopping cool-down');
+  
+  if (state.cooldownIntervalId) {
+    clearInterval(state.cooldownIntervalId);
+    state.cooldownIntervalId = null;
+  }
+  
+  state.isInCooldown = false;
+  state.cooldownProgress = 0;
+  state.cooldownStartTime = null;
+  
+  updateUI();
+}
 
 function updateCooldown() {
   if (!state.isInCooldown || !state.cooldownStartTime) return;
@@ -457,20 +612,20 @@ function updatePhaseIcon() {
   const isIdle = state.runState === 'idle';
   const isPaused = state.runState === 'paused' && !state.isInBreakState;
   const isBreak = state.isInBreakState;
-  const isFocus = state.phase === 'focus' && state.runState === 'running';
+  const isRunning = state.runState === 'running';
+  const isReflection = state.inReflectionPeriod;
   
   let iconSVG = '';
   
-  if (isIdle || isPaused) {
-    // Closed eye icon
+  if (isReflection) {
+    // Blue star icon (celebration of completing 4 pomodoros!)
     iconSVG = `
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-        <line x1="1" y1="1" x2="23" y2="23"/>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="#3b82f6" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
     `;
   } else if (isBreak) {
-    // Coffee mug icon
+    // Coffee mug icon (during break)
     iconSVG = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
@@ -480,12 +635,20 @@ function updatePhaseIcon() {
         <line x1="14" y1="1" x2="14" y2="4"/>
       </svg>
     `;
-  } else if (isFocus) {
-    // Open eye icon
+  } else if (isRunning) {
+    // Open eye icon (timer is counting down)
     iconSVG = `
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
         <circle cx="12" cy="12" r="3"/>
+      </svg>
+    `;
+  } else {
+    // Closed eye icon (idle or paused)
+    iconSVG = `
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
       </svg>
     `;
   }
@@ -517,40 +680,60 @@ function updateProgressRing() {
 
 function updateProgressDots() {
   const dots = elements.progressDots.querySelectorAll('.dot');
-  const isPaused = state.runState === 'paused';
-  const isBreak = state.isInBreakState;
-  const isInCooldown = state.isInCooldown;
   
-  // Calculate how many dots to light up
-  let litDotsCount = 0;
-  
-  if (isPaused && !isBreak) {
-    // Light up dots based on pause duration (every 15 seconds)
-    litDotsCount = Math.min(Math.floor(state.pauseDuration / 15), 4);
-  } else if (isInCooldown) {
-    // During cooldown, dots reset from right to left
-    const cooldownElapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
-    const dotsToReset = Math.min(Math.floor(cooldownElapsed / 15), 4);
-    litDotsCount = 4 - dotsToReset;
-  } else {
-    // Show completed pomodoros
-    litDotsCount = Math.min(state.completedPomodoros % 4, 4);
-  }
+  // Priority order for dot states:
+  // 1. Cool-down yellow (clearing right-to-left, restoring green underneath)
+  // 2. Warm-up yellow (filling left-to-right, overlaying green)
+  // 3. Break yellow blinking (all 4)
+  // 4. Completed green (solid)
+  // 5. Default gray (unfilled)
   
   dots.forEach((dot, index) => {
     dot.className = 'dot'; // Reset classes
     
-    if (index < litDotsCount) {
-      if (isPaused || isBreak) {
-        dot.classList.add('lit-yellow');
-      } else {
-        dot.classList.add('lit');
-      }
+    // First, always show the base green dots for completed pomodoros
+    const isCompletedPomodoro = index < state.completedPomodoros;
+    if (isCompletedPomodoro) {
+      dot.classList.add('lit-green');
     }
     
-    // Blinking during break
-    if (isBreak && dotsVisible && index < litDotsCount) {
+    // Then overlay special states on top
+    
+    // Check cool-down state (clearing yellow from right to left)
+    if (state.isInCooldown && state.cooldownProgress > 0) {
+      // Yellow dots remain on the LEFT side (haven't been cleared yet)
+      // Cool-down clears from right to left
+      const remainingYellowDots = 4 - state.cooldownProgress;
+      if (index < remainingYellowDots) {
+        // Override with yellow (this dot hasn't cleared yet)
+        dot.classList.remove('lit-green');
+        dot.classList.add('lit-yellow');
+      }
+      // Else: keep the green if it was a completed pomodoro
+    }
+    // Check warm-up state (filling yellow from left to right)
+    else if (state.runState === 'paused' && !state.isInBreakState && state.pauseWarmUpProgress > 0) {
+      // Yellow dots fill from left to right
+      if (index < state.pauseWarmUpProgress) {
+        // Override with yellow (warm-up in progress)
+        dot.classList.remove('lit-green');
+        dot.classList.add('lit-yellow');
+      }
+      // Else: keep the green if it was a completed pomodoro
+    }
+    // Check break state (all 4 yellow blinking, overrides everything)
+    else if (state.isInBreakState) {
+      dot.classList.remove('lit-green');
+      dot.classList.add('lit-yellow');
       dot.classList.add('blink');
+    }
+    // Check reflection period (force all 4 to green)
+    else if (state.inReflectionPeriod) {
+      // Show all 4 green dots during reflection
+      if (index < 4) {
+        dot.classList.remove('lit-yellow');
+        dot.classList.add('lit-green');
+      }
     }
   });
 }
@@ -558,15 +741,17 @@ function updateProgressDots() {
 function updatePhaseLabel() {
   const isPaused = state.runState === 'paused' && !state.isInBreakState;
   const isBreak = state.isInBreakState;
+  const isReflection = state.inReflectionPeriod;
   
-  if (isPaused) {
+  if (isReflection) {
+    elements.phaseLabel.textContent = 'REFLECT';
+  } else if (isPaused) {
     elements.phaseLabel.textContent = 'PAUSE';
   } else if (isBreak) {
     elements.phaseLabel.textContent = 'BREAK';
-  } else if (state.phase === 'focus') {
-    elements.phaseLabel.textContent = 'FOCUS';
   } else {
-    elements.phaseLabel.textContent = 'READY';
+    // Show "FOCUS" for any focus/work phase (running or idle)
+    elements.phaseLabel.textContent = 'FOCUS';
   }
 }
 
@@ -641,7 +826,14 @@ function hideSettings() {
   // Auto-save settings when closing
   saveSettings();
   
-  elements.panelsContainer.classList.remove('show-settings');
+  // Remove the show-settings class
+  if (elements.panelsContainer) {
+    elements.panelsContainer.classList.remove('show-settings');
+    console.log('[Settings] Removed show-settings class');
+    console.log('[Settings] Current classes:', elements.panelsContainer.className);
+  } else {
+    console.error('[Settings] panelsContainer element not found!');
+  }
   
   console.log('[Settings] Panel closed');
 }

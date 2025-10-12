@@ -176,8 +176,12 @@ body {
   background: #ef4444; /* Red for focus */
 }
 
+.dot.lit-green {
+  background: #10b981; /* Green for completed pomodoros */
+}
+
 .dot.lit-yellow {
-  background: #fbbf24; /* Yellow for pause/break */
+  background: #fbbf24; /* Yellow for pause/break warm-up/cool-down */
 }
 
 .dot.blink {
@@ -293,9 +297,11 @@ body {
   z-index: 100;
 }
 
-.close-btn svg {
+.close-btn svg,
+.close-btn svg * {
   width: 14px;
   height: 14px;
+  pointer-events: none;
 }
 
 .close-btn:hover {
