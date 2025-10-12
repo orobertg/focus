@@ -1015,10 +1015,15 @@ function setupSliderListeners() {
 }
 
 function updateSliderValues() {
+  console.log('[Settings] Updating slider values from state.config:', state.config);
   elements.workMinutesValue.textContent = state.config.workMinutes.toString().padStart(2, '0');
   elements.shortBreakMinutesValue.textContent = state.config.shortBreakMinutes.toString().padStart(2, '0');
   elements.longBreakMinutesValue.textContent = state.config.longBreakMinutes;
   elements.cycleLengthValue.textContent = state.config.cycleLength;
+  console.log('[Settings] Slider values updated - Work:', elements.workMinutesValue.textContent, 
+              'Short Break:', elements.shortBreakMinutesValue.textContent,
+              'Long Break:', elements.longBreakMinutesValue.textContent,
+              'Cycle:', elements.cycleLengthValue.textContent);
 }
 
 function autoSaveSettings() {
@@ -1048,19 +1053,26 @@ function saveSettingsQuiet() {
     alwaysOnTop: elements.alwaysOnTopToggle.checked,
   };
   
+  console.log('[Settings] Saving configuration:', newConfig);
+  
   // Update state
   state.config = newConfig;
   
-  // Reset timer if idle
+  // Always update timer display if idle (not running or in break)
+  // This ensures the timer reflects the new duration immediately
   if (state.runState === 'idle') {
     state.millisRemaining = newConfig.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
     updateProgressRing();
+    console.log('[Settings] Applied new work duration to idle timer:', newConfig.workMinutes, 'minutes');
+  } else {
+    console.log('[Settings] Timer is not idle (state:', state.runState, ') - duration will apply on next reset/start');
   }
   
   // Save to localStorage
   localStorage.setItem('focus-config', JSON.stringify(newConfig));
+  console.log('[Settings] Saved to localStorage');
   
   // Send to main process for immediate window update
   ipcRenderer.send('settings-save', newConfig);
@@ -1068,21 +1080,25 @@ function saveSettingsQuiet() {
 
 function loadSettings() {
   const saved = localStorage.getItem('focus-config');
+  console.log('[Settings] Loading settings from localStorage:', saved ? 'Found' : 'Not found');
+  
   if (saved) {
     try {
       const config = JSON.parse(saved);
+      console.log('[Settings] Parsed config from localStorage:', config);
+      
       state.config = {
-        workMinutes: config.workMinutes || 25,
-        shortBreakMinutes: config.shortBreakMinutes || 5,
-        longBreakMinutes: config.longBreakMinutes || 15,
-        cycleLength: config.cycleLength || 4,
+        workMinutes: (config.workMinutes !== undefined && config.workMinutes !== null) ? config.workMinutes : 25,
+        shortBreakMinutes: (config.shortBreakMinutes !== undefined && config.shortBreakMinutes !== null) ? config.shortBreakMinutes : 5,
+        longBreakMinutes: (config.longBreakMinutes !== undefined && config.longBreakMinutes !== null) ? config.longBreakMinutes : 15,
+        cycleLength: (config.cycleLength !== undefined && config.cycleLength !== null) ? config.cycleLength : 4,
         soundEnabled: config.soundEnabled !== undefined ? config.soundEnabled : true,
         autoStartBreaks: config.autoStartBreaks !== undefined ? config.autoStartBreaks : true,
-        autoStartPomodoros: config.autoStartPomodoros || false,
+        autoStartPomodoros: config.autoStartPomodoros !== undefined ? config.autoStartPomodoros : false,
         showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
-        alwaysOnTop: config.alwaysOnTop || false, // Default to false
+        alwaysOnTop: config.alwaysOnTop !== undefined ? config.alwaysOnTop : false,
       };
-      console.log('[Settings] Loaded from localStorage:', state.config);
+      console.log('[Settings] Applied configuration to state.config:', state.config);
       
       // Apply loaded settings to timer - always update on startup
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
@@ -1094,12 +1110,13 @@ function loadSettings() {
       // Send to main process on startup
       ipcRenderer.send('settings-save', state.config);
     } catch (e) {
-      console.error('[Settings] Failed to load:', e);
+      console.error('[Settings] Failed to load from localStorage:', e);
       // Fall back to defaults
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
       state.millisTotal = state.millisRemaining;
       updateTimerDisplay();
       updateProgressRing();
+      console.log('[Settings] Using defaults after parse error');
     }
   } else {
     // No saved settings, set initial timer with defaults
@@ -1362,10 +1379,15 @@ function adjustDurationValue(control, delta) {
   // Clamp to min/max
   newValue = Math.max(control.min, Math.min(control.max, newValue));
   
+  console.log(`[Keyboard] Adjusting ${control.name}: current=${currentValue}, delta=${delta}, new=${newValue}, min=${control.min}, max=${control.max}`);
+  
   if (newValue !== currentValue) {
     control.valueEl.textContent = newValue.toString().padStart(2, '0');
+    console.log(`[Keyboard] Updated display element textContent to: ${control.valueEl.textContent}`);
     autoSaveSettings();
-    console.log(`[Keyboard] Adjusted ${control.name}: ${currentValue} -> ${newValue}`);
+    console.log(`[Keyboard] Called autoSaveSettings() for ${control.name}: ${currentValue} -> ${newValue}`);
+  } else {
+    console.log(`[Keyboard] No change needed for ${control.name} (already at ${currentValue})`);
   }
 }
 
