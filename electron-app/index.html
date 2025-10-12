@@ -11,12 +11,6 @@
     <!-- Timer Panel -->
     <div class="panel panel-timer" id="timer-panel">
       <div class="bubble" id="timer-bubble">
-    <!-- Pomodoro Type Indicator (Above Ring) -->
-    <div class="timer-preset-indicator" id="timer-preset-indicator">
-      <div class="timer-preset-bar timer-preset-bar-focus"></div>
-      <div class="timer-preset-bar timer-preset-bar-break"></div>
-    </div>
-
     <!-- Progress Ring -->
     <svg class="progress-ring" width="180" height="180">
       <circle
@@ -39,29 +33,6 @@
         id="progress-circle"
       />
     </svg>
-
-    <!-- Circular Pomodoro Queue (Around Progress Ring) -->
-    <div class="pomodoro-queue-circle" id="pomodoro-queue">
-      <!-- Upper-right quarter: Active pomodoro -->
-      <div class="queue-slot queue-slot-active" data-position="active">
-        <div class="queue-icon" id="queue-icon-active"></div>
-      </div>
-      
-      <!-- Lower-right quarter: Next in line -->
-      <div class="queue-slot queue-slot-next" data-position="next">
-        <div class="queue-icon" id="queue-icon-next"></div>
-      </div>
-      
-      <!-- Lower-left quarter: 3rd in queue -->
-      <div class="queue-slot queue-slot-third" data-position="third">
-        <div class="queue-icon" id="queue-icon-third"></div>
-      </div>
-      
-      <!-- Upper-left quarter: Completed/4th -->
-      <div class="queue-slot queue-slot-completed" data-position="completed">
-        <div class="queue-icon" id="queue-icon-completed"></div>
-      </div>
-    </div>
 
     <!-- Timer Content (Inside Progress Ring) -->
     <div class="timer-content">

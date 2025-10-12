@@ -86,7 +86,7 @@ function createToolbarWindow() {
   // Load saved toolbar position or calculate default (above main window)
   const savedToolbarPosition = store.get('toolbarPosition', { x: null, y: null });
   const toolbarOptions = {
-    width: 400,
+    width: 320,
     height: 52,
     frame: false,
     transparent: false, // Solid window, no transparency
@@ -109,7 +109,7 @@ function createToolbarWindow() {
   } else if (mainWindow) {
     const mainPos = mainWindow.getPosition();
     const mainSize = mainWindow.getSize();
-    toolbarOptions.x = mainPos[0] + (mainSize[0] / 2) - 200; // Center above main (half of 400px width)
+    toolbarOptions.x = mainPos[0] + (mainSize[0] / 2) - 160; // Center above main (half of 320px width)
     toolbarOptions.y = mainPos[1] - 60; // 60px above main window
   }
   
@@ -303,13 +303,6 @@ ipcMain.on('toolbar-action', (event, action) => {
 ipcMain.on('state-update', (event, state) => {
   if (!toolbarWindow || !toolbarWindow.webContents) return;
   toolbarWindow.webContents.send('timer-state-update', state);
-});
-
-// Listen for preset updates from main window to update toolbar buttons
-ipcMain.on('update-toolbar-presets', (event, config) => {
-  console.log('[IPC] Update toolbar presets:', config);
-  if (!toolbarWindow || !toolbarWindow.webContents) return;
-  toolbarWindow.webContents.send('preset-update', config);
 });
 
 // Settings IPC handlers

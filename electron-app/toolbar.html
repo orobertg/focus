@@ -7,13 +7,6 @@
 </head>
 <body>
   <div class="toolbar" id="toolbar">
-    <!-- Drag Handle -->
-    <div class="toolbar-handle">
-      <div class="handle-line"></div>
-      <div class="handle-line"></div>
-      <div class="handle-line"></div>
-    </div>
-    
     <button class="toolbar-btn" id="toolbar-play-btn" title="Play/Pause">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <polygon points="5 3 19 12 5 21 5 3"/>
@@ -24,28 +17,11 @@
         <rect x="6" y="6" width="12" height="12"/>
       </svg>
     </button>
-    <button class="toolbar-btn toolbar-extend" id="toolbar-extend-btn" title="Extend +5 minutes">
-      <div class="extend-bar"></div>
-    </button>
-    
-    <div class="toolbar-separator"></div>
-    
-    <!-- Pomodoro Preset Bars -->
-    <button class="toolbar-btn toolbar-preset" id="toolbar-preset-25" title="Pomodoro type 25/5" data-active="true">
-      <div class="preset-bars">
-        <div class="preset-bar preset-bar-focus" style="width: 25px;"></div>
-        <div class="preset-bar preset-bar-break" style="width: 5px;"></div>
-      </div>
-    </button>
-    <button class="toolbar-btn toolbar-preset" id="toolbar-preset-50" title="Pomodoro type 50/10" data-active="false">
-      <div class="preset-bars">
-        <div class="preset-bar preset-bar-focus" style="width: 50px;"></div>
-        <div class="preset-bar preset-bar-break" style="width: 10px;"></div>
-      </div>
-    </button>
-    
-    <div class="toolbar-separator"></div>
-    
+    <button class="toolbar-btn toolbar-extend" id="toolbar-extend-btn" title="Extend +5 minutes">+5</button>
+    <div class="toolbar-spacer"></div>
+    <button class="toolbar-btn toolbar-preset" id="toolbar-preset-25" title="25/5 (Classic Pomodoro)">25/5</button>
+    <button class="toolbar-btn toolbar-preset" id="toolbar-preset-50" title="50/10 (Extended Focus)">50/10</button>
+    <div class="toolbar-spacer"></div>
     <button class="toolbar-btn" id="toolbar-settings-btn" title="Settings">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"></circle>
