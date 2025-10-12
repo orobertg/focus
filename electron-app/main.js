@@ -218,7 +218,7 @@ function createTray() {
     
     const contextMenu = Menu.buildFromTemplate([
       { 
-        label: 'Focus Bubbles', 
+        label: 'Focus', 
         type: 'normal',
         enabled: false 
       },
@@ -254,12 +254,18 @@ function createTray() {
       { 
         label: 'Quit', 
         click: () => {
+          console.log('[Tray] Quit clicked');
+          // Destroy tray before quitting
+          if (tray && !tray.isDestroyed()) {
+            tray.destroy();
+            tray = null;
+          }
           app.quit();
         }
       }
     ]);
     
-    tray.setToolTip('Focus Bubbles - Pomodoro Timer');
+    tray.setToolTip('Focus - Pomodoro Timer');
     tray.setContextMenu(contextMenu);
     
     // Double-click to show/hide
@@ -404,6 +410,13 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => {
   console.log('[Electron] App quitting...');
   unregisterGlobalShortcuts();
+  
+  // Destroy tray icon to remove it from system tray
+  if (tray && !tray.isDestroyed()) {
+    tray.destroy();
+    tray = null;
+    console.log('[Electron] Tray icon destroyed');
+  }
 });
 
 // Handle app quit from tray

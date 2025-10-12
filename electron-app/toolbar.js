@@ -11,6 +11,7 @@ console.log('[Toolbar] Script loaded');
 const elements = {
   toolbarPlayBtn: document.getElementById('toolbar-play-btn'),
   toolbarStopBtn: document.getElementById('toolbar-stop-btn'),
+  toolbarSettingsBtn: document.getElementById('toolbar-settings-btn'),
   toolbarNotesBtn: document.getElementById('toolbar-notes-btn'),
 };
 
@@ -27,6 +28,11 @@ function handlePlayPause() {
 function handleStop() {
   console.log('[Toolbar] Stop clicked');
   ipcRenderer.send('toolbar-action', 'reset');
+}
+
+function handleSettings() {
+  console.log('[Toolbar] Settings clicked');
+  ipcRenderer.send('toolbar-action', 'settings');
 }
 
 function handleNotes() {
@@ -75,6 +81,7 @@ function init() {
   // Set up event listeners
   elements.toolbarPlayBtn.addEventListener('click', handlePlayPause);
   elements.toolbarStopBtn.addEventListener('click', handleStop);
+  elements.toolbarSettingsBtn.addEventListener('click', handleSettings);
   elements.toolbarNotesBtn.addEventListener('click', handleNotes);
   
   console.log('[Toolbar] Ready!');

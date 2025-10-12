@@ -1,8 +1,9 @@
 {
-  "name": "focus-bubbles-electron",
+  "name": "focus",
   "version": "0.1.0",
-  "description": "Focus Bubbles - Non-intrusive Pomodoro Timer (Electron)",
+  "description": "Focus - Non-intrusive Pomodoro Timer",
   "main": "main.js",
+  "productName": "Focus",
   "scripts": {
     "start": "electron .",
     "test": "echo \"No tests yet\" && exit 0"

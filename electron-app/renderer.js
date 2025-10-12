@@ -31,6 +31,9 @@ const state = {
 
 // DOM Elements
 const elements = {
+  panelsContainer: document.getElementById('panels-container'),
+  timerPanel: document.getElementById('timer-panel'),
+  settingsPanel: document.getElementById('settings-panel'),
   bubble: document.getElementById('timer-bubble'),
   phaseIcon: document.getElementById('phase-icon'),
   timerDisplay: document.getElementById('timer-display'),
@@ -40,6 +43,12 @@ const elements = {
   startPauseBtn: document.getElementById('start-pause-btn'),
   resetBtn: document.getElementById('reset-btn'),
   settingsBtn: document.getElementById('settings-btn'),
+  saveSettingsBtn: document.getElementById('save-settings-btn'),
+  workMinutesInput: document.getElementById('work-minutes'),
+  shortBreakMinutesInput: document.getElementById('short-break-minutes'),
+  longBreakMinutesInput: document.getElementById('long-break-minutes'),
+  cycleLengthInput: document.getElementById('cycle-length'),
+  soundEnabledInput: document.getElementById('sound-enabled'),
 };
 
 // Timer interval
@@ -53,10 +62,14 @@ let pauseBlinkInterval = null;
 function init() {
   console.log('[Renderer] Initializing...');
   
+  // Load saved settings
+  loadSettings();
+  
   // Set up event listeners for timer controls
   elements.startPauseBtn.addEventListener('click', handleStartPause);
   elements.resetBtn.addEventListener('click', handleReset);
-  elements.settingsBtn.addEventListener('click', handleSettings);
+  elements.settingsBtn.addEventListener('click', () => showSettings());
+  elements.saveSettingsBtn.addEventListener('click', () => saveSettings());
   
   // Listen for toolbar commands via IPC
   ipcRenderer.on('toolbar-command', (event, action) => {
@@ -70,6 +83,9 @@ function init() {
         break;
       case 'notes':
         handleNotes();
+        break;
+      case 'settings':
+        showSettings();
         break;
     }
   });
@@ -212,15 +228,12 @@ function handleReset() {
   sendStateUpdate(); // Notify toolbar
 }
 
-function handleSettings() {
-  console.log('[Settings] Opening settings panel');
-  ipcRenderer.send('settings-open');
-}
+// Settings are now handled inline - see Settings Panel section below
 
-// Listen for settings updates
+// (Old settings IPC listener - can be removed)
 ipcRenderer.on('settings-updated', (event, settings) => {
-  console.log('[Settings] Settings updated:', settings);
-  // Apply new settings to timer
+  console.log('[Settings] Settings updated (legacy):', settings);
+  // Settings are now handled via local panel
   state.config.workMinutes = settings.workMinutes;
   state.config.shortBreakMinutes = settings.shortBreakMinutes;
   state.config.longBreakMinutes = settings.longBreakMinutes;
@@ -516,6 +529,74 @@ function updateBubbleClass() {
     elements.bubble.classList.add('phase-break');
   } else {
     elements.bubble.classList.add('phase-idle');
+  }
+}
+
+/* ============================================
+   Settings Panel
+   ============================================ */
+
+function showSettings() {
+  elements.panelsContainer.classList.add('show-settings');
+  
+  // Populate settings with current values
+  elements.workMinutesInput.value = state.config.workMinutes;
+  elements.shortBreakMinutesInput.value = state.config.shortBreakMinutes;
+  elements.longBreakMinutesInput.value = state.config.longBreakMinutes;
+  elements.cycleLengthInput.value = state.config.cycleLength;
+  elements.soundEnabledInput.checked = state.config.soundEnabled || false;
+}
+
+function hideSettings() {
+  elements.panelsContainer.classList.remove('show-settings');
+}
+
+function saveSettings() {
+  // Read values from inputs
+  const newConfig = {
+    workMinutes: parseInt(elements.workMinutesInput.value, 10),
+    shortBreakMinutes: parseInt(elements.shortBreakMinutesInput.value, 10),
+    longBreakMinutes: parseInt(elements.longBreakMinutesInput.value, 10),
+    cycleLength: parseInt(elements.cycleLengthInput.value, 10),
+    soundEnabled: elements.soundEnabledInput.checked,
+  };
+  
+  // Update state
+  state.config = newConfig;
+  
+  // Reset timer if idle
+  if (state.runState === 'idle') {
+    state.millisRemaining = newConfig.workMinutes * 60 * 1000;
+    state.millisTotal = state.millisRemaining;
+    updateTimerDisplay();
+    updateProgressCircle();
+  }
+  
+  // Save to localStorage
+  localStorage.setItem('focus-config', JSON.stringify(newConfig));
+  
+  // Close settings panel
+  hideSettings();
+  
+  console.log('[Settings] Saved:', newConfig);
+}
+
+function loadSettings() {
+  const saved = localStorage.getItem('focus-config');
+  if (saved) {
+    try {
+      const config = JSON.parse(saved);
+      state.config = {
+        workMinutes: config.workMinutes || 25,
+        shortBreakMinutes: config.shortBreakMinutes || 5,
+        longBreakMinutes: config.longBreakMinutes || 15,
+        cycleLength: config.cycleLength || 4,
+        soundEnabled: config.soundEnabled !== undefined ? config.soundEnabled : true,
+      };
+      console.log('[Settings] Loaded:', state.config);
+    } catch (e) {
+      console.error('[Settings] Failed to load:', e);
+    }
   }
 }
 
