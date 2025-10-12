@@ -61,12 +61,23 @@ function createWindow() {
   console.log('[Electron] Click-through is DISABLED by default');
   console.log('[Electron] Press ALT+SHIFT+C to toggle click-through on/off');
 
-  // Save window position when moved
+  // Re-assert always-on-top only when necessary (avoid flickering)
+  mainWindow.on('blur', () => {
+    // When losing focus, schedule a re-assertion
+    ensureAlwaysOnTop();
+  });
+
+  mainWindow.on('show', () => {
+    ensureAlwaysOnTop();
+  });
+
+  // Save window position when moved and re-assert always-on-top
   mainWindow.on('moved', () => {
     if (!mainWindow) return;
     const position = mainWindow.getPosition();
     store.set('windowPosition', { x: position[0], y: position[1] });
     console.log('[Electron] Saved window position:', position);
+    ensureAlwaysOnTop(); // Re-assert after drag completes
   });
 
   // Handle window closed
@@ -116,11 +127,22 @@ function createToolbarWindow() {
   toolbarWindow = new BrowserWindow(toolbarOptions);
   toolbarWindow.loadFile('toolbar.html');
   
-  // Save toolbar position when moved
+  // Re-assert always-on-top only when necessary (avoid flickering)
+  toolbarWindow.on('blur', () => {
+    // When losing focus, schedule a re-assertion
+    ensureAlwaysOnTop();
+  });
+
+  toolbarWindow.on('show', () => {
+    ensureAlwaysOnTop();
+  });
+  
+  // Save toolbar position when moved and re-assert always-on-top
   toolbarWindow.on('moved', () => {
     if (!toolbarWindow) return;
     const position = toolbarWindow.getPosition();
     store.set('toolbarPosition', { x: position[0], y: position[1] });
+    ensureAlwaysOnTop(); // Re-assert after drag completes
   });
   
   // Don't quit when toolbar is closed, just hide it
@@ -159,6 +181,11 @@ function createSettingsWindow() {
   
   settingsWindow.loadFile('settings.html');
   
+  // Re-assert always-on-top only when necessary (avoid flickering)
+  settingsWindow.on('show', () => {
+    ensureAlwaysOnTop();
+  });
+  
   settingsWindow.on('closed', () => {
     settingsWindow = null;
   });
@@ -170,12 +197,36 @@ function createSettingsWindow() {
    Click-Through Management
    ============================================ */
 
+let ensureAlwaysOnTopTimeout = null;
+
+function ensureAlwaysOnTop() {
+  // Debounce to prevent flickering from rapid calls
+  if (ensureAlwaysOnTopTimeout) {
+    clearTimeout(ensureAlwaysOnTopTimeout);
+  }
+  
+  ensureAlwaysOnTopTimeout = setTimeout(() => {
+    // Ensure all windows stay on top - only if visible to avoid unnecessary calls
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
+      mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    }
+    if (toolbarWindow && !toolbarWindow.isDestroyed() && toolbarWindow.isVisible()) {
+      toolbarWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    }
+    if (settingsWindow && !settingsWindow.isDestroyed() && settingsWindow.isVisible()) {
+      settingsWindow.setAlwaysOnTop(true, 'pop-up-menu');
+    }
+    ensureAlwaysOnTopTimeout = null;
+  }, 200); // 200ms debounce - enough to prevent flicker but responsive
+}
+
 function enableClickThrough() {
   if (!mainWindow) return;
   
   try {
     mainWindow.setIgnoreMouseEvents(true, { forward: true });
     clickThroughEnabled = true;
+    ensureAlwaysOnTop(); // Re-assert always-on-top
     console.log('[Electron] ✅ Click-through ENABLED');
   } catch (error) {
     console.error('[Electron] ❌ Failed to enable click-through:', error);
@@ -188,6 +239,7 @@ function disableClickThrough() {
   try {
     mainWindow.setIgnoreMouseEvents(false);
     clickThroughEnabled = false;
+    ensureAlwaysOnTop(); // Re-assert always-on-top
     console.log('[Electron] ❌ Click-through DISABLED');
   } catch (error) {
     console.error('[Electron] Failed to disable click-through:', error);
@@ -231,6 +283,7 @@ function createTray() {
               mainWindow.hide();
             } else {
               mainWindow.show();
+              ensureAlwaysOnTop();
             }
           }
         }
@@ -275,6 +328,7 @@ function createTray() {
           mainWindow.hide();
         } else {
           mainWindow.show();
+          ensureAlwaysOnTop();
         }
       }
     });
@@ -348,6 +402,7 @@ function registerGlobalShortcuts() {
         } else {
           mainWindow.show();
           mainWindow.focus();
+          ensureAlwaysOnTop();
         }
       }
     });
