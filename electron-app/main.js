@@ -699,9 +699,22 @@ function registerGlobalShortcuts() {
       // TODO: Implement notes panel
     });
     
+    // ALT+SHIFT+O: Open options/settings
+    globalShortcut.register('Alt+Shift+O', () => {
+      console.log('[Shortcut] ALT+SHIFT+O pressed - Open options');
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.show();
+        mainWindow.focus();
+        ensureAlwaysOnTop();
+        // Send command to renderer to open settings
+        mainWindow.webContents.send('toolbar-command', 'settings');
+      }
+    });
+    
     console.log('[Electron] Global shortcuts registered successfully:');
     console.log('[Electron]   ALT+SHIFT+P: Toggle window visibility');
     console.log('[Electron]   ALT+SHIFT+C: Toggle click-through');
+    console.log('[Electron]   ALT+SHIFT+O: Open options/settings');
     console.log('[Electron]   ALT+SHIFT+S: Screenshot (TODO)');
     console.log('[Electron]   ALT+SHIFT+N: Open notes (TODO)');
   } catch (error) {

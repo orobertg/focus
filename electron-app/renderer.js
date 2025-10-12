@@ -49,6 +49,15 @@ const state = {
   }
 };
 
+// Focus Management State
+const focusState = {
+  currentContext: 'timer', // 'timer' or 'settings'
+  timerFocusIndex: 0,
+  settingsFocusIndex: 0,
+  timerFocusableElements: [],
+  settingsFocusableElements: [],
+};
+
 // DOM Elements
 const elements = {
   panelsContainer: document.getElementById('panels-container'),
@@ -191,6 +200,14 @@ function init() {
   
   // Set up slider listeners for real-time updates
   setupSliderListeners();
+  
+  // Initialize focusable elements
+  initializeFocusManagement();
+  
+  // Global keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    handleKeyboardNavigation(e);
+  });
   
   // Listen for toolbar commands via IPC
   ipcRenderer.on('toolbar-command', (event, action) => {
@@ -551,36 +568,16 @@ function stopBreakBlink() {
    ============================================ */
 
 function startCoolDown() {
-  console.log('[Timer] Starting cool-down sequence');
+  console.log('[Timer] Starting cool-down sequence (60s to clear yellow dots right-to-left)');
   
   // Clear any existing cool-down interval
   if (state.cooldownIntervalId) {
     clearInterval(state.cooldownIntervalId);
+    state.cooldownIntervalId = null;
   }
   
-  // Set up interval to clear dots every 15 seconds (right to left)
-  state.cooldownIntervalId = setInterval(() => {
-    if (!state.isInCooldown) {
-      stopCoolDown();
-      return;
-    }
-    
-    const elapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
-    const newProgress = Math.min(Math.floor(elapsed / 15), 4);
-    
-    if (newProgress !== state.cooldownProgress) {
-      state.cooldownProgress = newProgress;
-      console.log(`[Timer] Cool-down progress: ${newProgress}/4 dots cleared`);
-      
-      // After 60 seconds, end cool-down
-      if (newProgress >= 4) {
-        console.log('[Timer] Cool-down complete');
-        stopCoolDown();
-      }
-      
-      updateUI();
-    }
-  }, 250); // Check 4 times per second
+  // Note: Cool-down progress is updated by updateCooldown() which is called from tick()
+  // This ensures smooth animation as part of the main timer loop
 }
 
 function stopCoolDown() {
@@ -602,12 +599,18 @@ function updateCooldown() {
   if (!state.isInCooldown || !state.cooldownStartTime) return;
   
   const cooldownElapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
+  const newProgress = Math.min(Math.floor(cooldownElapsed / 15), 4);
   
+  // Update progress if it changed
+  if (newProgress !== state.cooldownProgress) {
+    state.cooldownProgress = newProgress;
+    console.log(`[Timer] Cool-down progress: ${newProgress}/4 dots cleared (right-to-left)`);
+  }
+  
+  // Complete cooldown after 60 seconds
   if (cooldownElapsed >= 60) {
-    // Cooldown complete
-    state.isInCooldown = false;
-    state.cooldownStartTime = null;
-    console.log('[Timer] Cooldown complete');
+    console.log('[Timer] Cool-down complete - all dots returned to original state');
+    stopCoolDown();
   }
 }
 
@@ -726,16 +729,17 @@ function updateProgressDots() {
     // Then overlay special states on top
     
     // Check cool-down state (clearing yellow from right to left)
-    if (state.isInCooldown && state.cooldownProgress > 0) {
+    if (state.isInCooldown) {
       // Yellow dots remain on the LEFT side (haven't been cleared yet)
-      // Cool-down clears from right to left
+      // Cool-down clears from right to left every 15 seconds
+      // Progress: 0 = all 4 yellow, 1 = 3 yellow, 2 = 2 yellow, 3 = 1 yellow, 4 = 0 yellow
       const remainingYellowDots = 4 - state.cooldownProgress;
       if (index < remainingYellowDots) {
         // Override with yellow (this dot hasn't cleared yet)
         dot.classList.remove('lit-green');
         dot.classList.add('lit-yellow');
       }
-      // Else: keep the green if it was a completed pomodoro
+      // Else: keep the green if it was a completed pomodoro (dots restore right-to-left)
     }
     // Check warm-up state (filling yellow from left to right)
     else if (state.runState === 'paused' && !state.isInBreakState && state.pauseWarmUpProgress > 0) {
@@ -1046,13 +1050,32 @@ function loadSettings() {
         showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
         alwaysOnTop: config.alwaysOnTop || false, // Default to false
       };
-      console.log('[Settings] Loaded:', state.config);
+      console.log('[Settings] Loaded from localStorage:', state.config);
+      
+      // Apply loaded settings to timer - always update on startup
+      state.millisRemaining = state.config.workMinutes * 60 * 1000;
+      state.millisTotal = state.millisRemaining;
+      updateTimerDisplay();
+      updateProgressRing();
+      console.log('[Settings] Applied work duration to timer on startup:', state.config.workMinutes, 'minutes');
       
       // Send to main process on startup
       ipcRenderer.send('settings-save', state.config);
     } catch (e) {
       console.error('[Settings] Failed to load:', e);
+      // Fall back to defaults
+      state.millisRemaining = state.config.workMinutes * 60 * 1000;
+      state.millisTotal = state.millisRemaining;
+      updateTimerDisplay();
+      updateProgressRing();
     }
+  } else {
+    // No saved settings, set initial timer with defaults
+    console.log('[Settings] No saved settings found, using defaults:', state.config);
+    state.millisRemaining = state.config.workMinutes * 60 * 1000;
+    state.millisTotal = state.millisRemaining;
+    updateTimerDisplay();
+    updateProgressRing();
   }
 }
 
@@ -1114,6 +1137,211 @@ document.addEventListener('dblclick', (event) => {
   console.log('[Window] Double-click detected');
   ipcRenderer.send('window-double-click');
 });
+
+/* ============================================
+   Keyboard Navigation System
+   ============================================ */
+
+function initializeFocusManagement() {
+  console.log('[Focus] Initializing keyboard navigation');
+  
+  // Timer screen focusable elements (horizontal navigation)
+  focusState.timerFocusableElements = [
+    elements.startPauseBtn,
+    elements.resetBtn,
+    elements.settingsBtn,
+  ].filter(el => el !== null);
+  
+  // Settings screen focusable elements (vertical navigation)
+  // These are the interactive controls that can be navigated
+  focusState.settingsFocusableElements = [
+    { type: 'duration', name: 'Work Duration', valueEl: elements.workMinutesValue, prevBtn: elements.workMinutesPrev, nextBtn: elements.workMinutesNext, min: 5, max: 90, step: 5 },
+    { type: 'duration', name: 'Short Break', valueEl: elements.shortBreakMinutesValue, prevBtn: elements.shortBreakMinutesPrev, nextBtn: elements.shortBreakMinutesNext, min: 1, max: 30, step: 1 },
+    { type: 'duration', name: 'Long Break', valueEl: elements.longBreakMinutesValue, prevBtn: elements.longBreakMinutesPrev, nextBtn: elements.longBreakMinutesNext, min: 5, max: 60, step: 5 },
+    { type: 'duration', name: 'Cycle Length', valueEl: elements.cycleLengthValue, prevBtn: elements.cycleLengthPrev, nextBtn: elements.cycleLengthNext, min: 1, max: 10, step: 1 },
+    { type: 'toggle', name: 'Sound', element: elements.soundEnabledInput },
+    { type: 'toggle', name: 'Auto-start Breaks', element: elements.autoStartBreaksInput },
+    { type: 'toggle', name: 'Auto-start Pomodoros', element: elements.autoStartPomodorosInput },
+    { type: 'toggle', name: 'Always on Top', element: elements.alwaysOnTopToggle },
+    { type: 'toggle', name: 'Show Notifications', element: elements.showNotificationsInput },
+  ].filter(item => {
+    if (item.type === 'duration') {
+      return item.valueEl !== null;
+    } else {
+      return item.element !== null;
+    }
+  });
+  
+  console.log(`[Focus] Initialized ${focusState.timerFocusableElements.length} timer controls`);
+  console.log(`[Focus] Initialized ${focusState.settingsFocusableElements.length} settings controls`);
+}
+
+function handleKeyboardNavigation(e) {
+  const isSettingsOpen = elements.panelsContainer && 
+                        elements.panelsContainer.classList.contains('show-settings');
+  
+  focusState.currentContext = isSettingsOpen ? 'settings' : 'timer';
+  
+  // Escape key: Close settings if open
+  if (e.key === 'Escape' || e.keyCode === 27) {
+    if (isSettingsOpen) {
+      console.log('[Keyboard] Escape pressed - closing settings');
+      e.preventDefault();
+      e.stopPropagation();
+      hideSettings();
+      return;
+    }
+  }
+  
+  // Arrow key navigation
+  if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (focusState.currentContext === 'settings') {
+      handleSettingsNavigation(e.key);
+    } else {
+      handleTimerNavigation(e.key);
+    }
+    return;
+  }
+  
+  // Space bar activation
+  if (e.key === ' ' || e.key === 'Spacebar' || e.keyCode === 32) {
+    if (focusState.currentContext === 'timer') {
+      e.preventDefault();
+      e.stopPropagation();
+      activateTimerControl();
+      return;
+    } else if (focusState.currentContext === 'settings') {
+      e.preventDefault();
+      e.stopPropagation();
+      activateSettingsControl();
+      return;
+    }
+  }
+  
+  // Enter key - same as space for activation
+  if (e.key === 'Enter' || e.keyCode === 13) {
+    if (focusState.currentContext === 'timer') {
+      e.preventDefault();
+      e.stopPropagation();
+      activateTimerControl();
+      return;
+    }
+  }
+}
+
+function handleTimerNavigation(key) {
+  const elements = focusState.timerFocusableElements;
+  if (elements.length === 0) return;
+  
+  // Remove focus from current element
+  if (elements[focusState.timerFocusIndex]) {
+    elements[focusState.timerFocusIndex].classList.remove('keyboard-focus');
+  }
+  
+  // Navigate horizontally
+  if (key === 'ArrowLeft') {
+    focusState.timerFocusIndex = (focusState.timerFocusIndex - 1 + elements.length) % elements.length;
+  } else if (key === 'ArrowRight') {
+    focusState.timerFocusIndex = (focusState.timerFocusIndex + 1) % elements.length;
+  }
+  
+  // Add focus to new element
+  elements[focusState.timerFocusIndex].classList.add('keyboard-focus');
+  console.log(`[Keyboard] Timer focus: ${focusState.timerFocusIndex} (${elements[focusState.timerFocusIndex].textContent})`);
+}
+
+function handleSettingsNavigation(key) {
+  const controls = focusState.settingsFocusableElements;
+  if (controls.length === 0) return;
+  
+  const currentControl = controls[focusState.settingsFocusIndex];
+  
+  // Vertical navigation (Up/Down)
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    // Remove focus from current control
+    removeFocusFromSettingsControl(currentControl);
+    
+    if (key === 'ArrowUp') {
+      focusState.settingsFocusIndex = (focusState.settingsFocusIndex - 1 + controls.length) % controls.length;
+    } else {
+      focusState.settingsFocusIndex = (focusState.settingsFocusIndex + 1) % controls.length;
+    }
+    
+    // Add focus to new control
+    const newControl = controls[focusState.settingsFocusIndex];
+    addFocusToSettingsControl(newControl);
+    console.log(`[Keyboard] Settings focus: ${focusState.settingsFocusIndex} (${newControl.name})`);
+  }
+  
+  // Horizontal navigation (Left/Right) - adjust current control
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    if (currentControl.type === 'duration') {
+      // Increment/decrement duration
+      const delta = (key === 'ArrowRight') ? currentControl.step : -currentControl.step;
+      adjustDurationValue(currentControl, delta);
+    } else if (currentControl.type === 'toggle') {
+      // Toggle the checkbox
+      currentControl.element.checked = !currentControl.element.checked;
+      autoSaveSettings();
+      console.log(`[Keyboard] Toggled ${currentControl.name}: ${currentControl.element.checked}`);
+    }
+  }
+}
+
+function adjustDurationValue(control, delta) {
+  let currentValue = parseInt(control.valueEl.textContent, 10);
+  let newValue = currentValue + delta;
+  
+  // Clamp to min/max
+  newValue = Math.max(control.min, Math.min(control.max, newValue));
+  
+  if (newValue !== currentValue) {
+    control.valueEl.textContent = newValue.toString().padStart(2, '0');
+    autoSaveSettings();
+    console.log(`[Keyboard] Adjusted ${control.name}: ${currentValue} -> ${newValue}`);
+  }
+}
+
+function addFocusToSettingsControl(control) {
+  if (control.type === 'duration') {
+    control.valueEl.classList.add('keyboard-focus');
+  } else if (control.type === 'toggle') {
+    control.element.classList.add('keyboard-focus');
+  }
+}
+
+function removeFocusFromSettingsControl(control) {
+  if (control.type === 'duration') {
+    control.valueEl.classList.remove('keyboard-focus');
+  } else if (control.type === 'toggle') {
+    control.element.classList.remove('keyboard-focus');
+  }
+}
+
+function activateTimerControl() {
+  const elements = focusState.timerFocusableElements;
+  if (elements.length === 0) return;
+  
+  const currentElement = elements[focusState.timerFocusIndex];
+  console.log(`[Keyboard] Activating timer control: ${currentElement.textContent}`);
+  currentElement.click();
+}
+
+function activateSettingsControl() {
+  const controls = focusState.settingsFocusableElements;
+  if (controls.length === 0) return;
+  
+  const currentControl = controls[focusState.settingsFocusIndex];
+  
+  if (currentControl.type === 'toggle') {
+    currentControl.element.checked = !currentControl.element.checked;
+    autoSaveSettings();
+    console.log(`[Keyboard] Activated toggle ${currentControl.name}: ${currentControl.element.checked}`);
+  }
+}
 
 /* ============================================
    Start Application

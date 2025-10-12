@@ -521,6 +521,38 @@ button:focus {
   outline-offset: 2px;
 }
 
+/* Keyboard Navigation Focus Indicators */
+.keyboard-focus {
+  outline: 3px solid rgba(100, 200, 255, 0.8) !important;
+  outline-offset: 3px !important;
+  box-shadow: 0 0 12px rgba(100, 200, 255, 0.6) !important;
+  animation: pulse-focus 2s ease-in-out infinite;
+}
+
+@keyframes pulse-focus {
+  0%, 100% {
+    outline-color: rgba(100, 200, 255, 0.8);
+    box-shadow: 0 0 12px rgba(100, 200, 255, 0.6);
+  }
+  50% {
+    outline-color: rgba(150, 220, 255, 1);
+    box-shadow: 0 0 20px rgba(100, 200, 255, 0.9);
+  }
+}
+
+/* Focus for duration values in settings */
+.keyboard-focus.numeric-value {
+  background: rgba(100, 200, 255, 0.2) !important;
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+/* Focus for toggle switches */
+input[type="checkbox"].keyboard-focus {
+  outline: 3px solid rgba(100, 200, 255, 0.9) !important;
+  outline-offset: 4px !important;
+}
+
 /* Prevent text selection during drag */
 .bubble * {
   -webkit-user-select: none;
