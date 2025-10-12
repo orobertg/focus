@@ -832,7 +832,19 @@ function applyPreset(workMinutes, breakMinutes) {
   // Update UI
   updateUI();
   
-  console.log(`[Preset] Applied: ${workMinutes} min work, ${breakMinutes} min break`);
+  // Check if settings panel is open and update the UI elements
+  const isSettingsOpen = elements.panelsContainer && 
+                         elements.panelsContainer.classList.contains('show-settings');
+  
+  if (isSettingsOpen) {
+    console.log('[Preset] Settings panel is open - updating slider values');
+    updateSliderValues();
+  }
+  
+  // Save to localStorage and notify main process
+  saveSettingsQuiet();
+  
+  console.log(`[Preset] Applied and saved: ${workMinutes} min work, ${breakMinutes} min break`);
 }
 
 /* ============================================
@@ -909,8 +921,12 @@ function hideSettings() {
   });
   
   // Reset timer focus to START button (middle button, index 1) when returning to timer
+  // Apply visual focus immediately so user knows which button is selected
   focusState.timerFocusIndex = 1;
-  console.log('[Settings] Panel closed - timer focus reset to START button, all visual indicators cleared');
+  if (focusState.timerFocusableElements[1]) {
+    focusState.timerFocusableElements[1].classList.add('keyboard-focus');
+    console.log('[Settings] Panel closed - timer focus reset to START button with visual indicator');
+  }
 }
 
 function switchTab(tabName) {
@@ -1257,11 +1273,12 @@ function handleKeyboardNavigation(e) {
     }
   }
   
-  // Tab key: Cycle through settings tabs
+  // Tab key: Cycle through settings tabs ONLY (never exit to timer)
   if (e.key === 'Tab' || e.keyCode === 9) {
     if (isSettingsOpen) {
       e.preventDefault();
       e.stopPropagation();
+      console.log(`[Keyboard] Tab key pressed in settings - cycling tabs (Shift=${e.shiftKey}), current tab: ${focusState.tabs[focusState.currentTabIndex]}`);
       cycleSettingsTabs(e.shiftKey); // Shift+Tab goes backwards
       return;
     }

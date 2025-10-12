@@ -90,7 +90,7 @@
     <!-- Settings Panel -->
     <div class="panel panel-settings" id="settings-panel">
       <!-- Save/Done Button -->
-      <button class="close-btn" id="close-settings-btn" title="Save & Close" 
+      <button class="close-btn" id="close-settings-btn" title="Save & Close" tabindex="-1"
               onclick="window.closeSettings && window.closeSettings(); return false;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;">
           <polyline points="20 6 9 17 4 12"/>
@@ -99,9 +99,9 @@
       
       <!-- Tab Navigation -->
       <div class="settings-tabs">
-        <button class="settings-tab active" data-tab="duration" id="tab-duration">DURATION</button>
-        <button class="settings-tab" data-tab="options" id="tab-options">OPTIONS</button>
-        <button class="settings-tab" data-tab="notifications" id="tab-notifications">NOTIFICATIONS</button>
+        <button class="settings-tab active" data-tab="duration" id="tab-duration" tabindex="-1">DURATION</button>
+        <button class="settings-tab" data-tab="options" id="tab-options" tabindex="-1">OPTIONS</button>
+        <button class="settings-tab" data-tab="notifications" id="tab-notifications" tabindex="-1">NOTIFICATIONS</button>
       </div>
       
       <!-- Tab Content -->
@@ -113,13 +113,13 @@
           <div class="setting-row">
             <span class="setting-label">Focus Session</span>
             <div class="setting-controls">
-              <button class="nav-btn" id="work-minutes-prev">
+              <button class="nav-btn" id="work-minutes-prev" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="15 18 9 12 15 6"/>
                 </svg>
               </button>
               <span class="setting-value"><span id="work-minutes-value">25</span> min</span>
-              <button class="nav-btn" id="work-minutes-next">
+              <button class="nav-btn" id="work-minutes-next" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -130,13 +130,13 @@
           <div class="setting-row">
             <span class="setting-label">Short break</span>
             <div class="setting-controls">
-              <button class="nav-btn" id="short-break-minutes-prev">
+              <button class="nav-btn" id="short-break-minutes-prev" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="15 18 9 12 15 6"/>
                 </svg>
               </button>
               <span class="setting-value"><span id="short-break-minutes-value">05</span> min</span>
-              <button class="nav-btn" id="short-break-minutes-next">
+              <button class="nav-btn" id="short-break-minutes-next" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -147,13 +147,13 @@
           <div class="setting-row">
             <span class="setting-label">Long break</span>
             <div class="setting-controls">
-              <button class="nav-btn" id="long-break-minutes-prev">
+              <button class="nav-btn" id="long-break-minutes-prev" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="15 18 9 12 15 6"/>
                 </svg>
               </button>
               <span class="setting-value"><span id="long-break-minutes-value">15</span> min</span>
-              <button class="nav-btn" id="long-break-minutes-next">
+              <button class="nav-btn" id="long-break-minutes-next" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -164,13 +164,13 @@
           <div class="setting-row">
             <span class="setting-label">Long break after</span>
             <div class="setting-controls">
-              <button class="nav-btn" id="cycle-length-prev">
+              <button class="nav-btn" id="cycle-length-prev" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="15 18 9 12 15 6"/>
                 </svg>
               </button>
               <span class="setting-value"><span id="cycle-length-value">4</span> times</span>
-              <button class="nav-btn" id="cycle-length-next">
+              <button class="nav-btn" id="cycle-length-next" tabindex="-1">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <polyline points="9 18 15 12 9 6"/>
                 </svg>
@@ -186,7 +186,7 @@
           <div class="setting-row">
             <span class="setting-label">Sound</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="sound-enabled" checked>
+              <input type="checkbox" id="sound-enabled" checked tabindex="-1">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -194,7 +194,7 @@
           <div class="setting-row">
             <span class="setting-label">Auto-start Breaks</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="auto-start-breaks" checked>
+              <input type="checkbox" id="auto-start-breaks" checked tabindex="-1">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -202,7 +202,7 @@
           <div class="setting-row">
             <span class="setting-label">Auto-start Pomodoros</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="auto-start-pomodoros">
+              <input type="checkbox" id="auto-start-pomodoros" tabindex="-1">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -210,7 +210,7 @@
           <div class="setting-row">
             <span class="setting-label">Always on Top</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="always-on-top-toggle">
+              <input type="checkbox" id="always-on-top-toggle" tabindex="-1">
               <span class="toggle-slider"></span>
             </label>
           </div>
@@ -223,7 +223,7 @@
           <div class="setting-row">
             <span class="setting-label">Desktop Notifications</span>
             <label class="toggle-switch">
-              <input type="checkbox" id="show-notifications" checked>
+              <input type="checkbox" id="show-notifications" checked tabindex="-1">
               <span class="toggle-slider"></span>
             </label>
           </div>
