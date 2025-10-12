@@ -547,10 +547,51 @@ button:focus {
   padding: 4px 8px;
 }
 
-/* Focus for toggle switches */
+/* Focus for toggle switches - hide native checkbox outline */
 input[type="checkbox"].keyboard-focus {
-  outline: 3px solid rgba(100, 200, 255, 0.9) !important;
-  outline-offset: 4px !important;
+  outline: none !important;
+}
+
+/* Highlight the entire setting row when checkbox is focused */
+input[type="checkbox"].keyboard-focus + .toggle-slider {
+  box-shadow: 0 0 0 3px rgba(100, 200, 255, 0.8), 0 0 20px rgba(100, 200, 255, 0.6) !important;
+  animation: pulse-toggle-focus 2s ease-in-out infinite;
+}
+
+@keyframes pulse-toggle-focus {
+  0%, 100% {
+    box-shadow: 0 0 0 3px rgba(100, 200, 255, 0.8), 0 0 20px rgba(100, 200, 255, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(150, 220, 255, 1), 0 0 30px rgba(100, 200, 255, 0.9);
+  }
+}
+
+/* Also highlight the parent setting row */
+.setting-row:has(input[type="checkbox"].keyboard-focus) {
+  background: rgba(100, 200, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px 16px;
+  margin: 4px -16px;
+  transition: all 0.2s ease;
+}
+
+/* Make the setting label more prominent when focused */
+.setting-row:has(input[type="checkbox"].keyboard-focus) .setting-label {
+  color: rgba(150, 220, 255, 1);
+  font-weight: 600;
+  transition: color 0.2s ease, font-weight 0.2s ease;
+}
+
+/* Ensure parent container doesn't clip the glow */
+.settings-tab-content {
+  overflow: visible !important;
+  padding: 0 8px;
+}
+
+.setting-row {
+  position: relative;
+  overflow: visible;
 }
 
 /* Prevent text selection during drag */

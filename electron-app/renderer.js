@@ -55,7 +55,10 @@ const focusState = {
   timerFocusIndex: 0,
   settingsFocusIndex: 0,
   timerFocusableElements: [],
-  settingsFocusableElements: [],
+  settingsFocusableElements: [], // Filtered by current tab
+  allSettingsControls: [], // All controls from all tabs
+  currentTabIndex: 0, // 0=duration, 1=options, 2=notifications
+  tabs: ['duration', 'options', 'notifications'],
 };
 
 // DOM Elements
@@ -841,8 +844,19 @@ function showSettings() {
   
   elements.panelsContainer.classList.add('show-settings');
   
-  // Switch to Duration tab by default
+  // Reset to Duration tab by default
+  focusState.currentTabIndex = 0;
+  focusState.settingsFocusIndex = 0;
   switchTab('duration');
+  
+  // Re-initialize focusable elements to ensure proper filtering
+  initializeFocusManagement();
+  
+  // Add focus to first control in DURATION tab
+  if (focusState.settingsFocusableElements.length > 0) {
+    addFocusToSettingsControl(focusState.settingsFocusableElements[0]);
+    console.log('[Settings] Initial focus on:', focusState.settingsFocusableElements[0].name);
+  }
   
   // Populate settings with current values
   updateSliderValues();
@@ -865,6 +879,12 @@ function showSettings() {
 
 function hideSettings() {
   console.log('[Settings] Closing settings panel');
+  
+  // Remove focus from current control
+  if (focusState.settingsFocusableElements.length > 0 && 
+      focusState.settingsFocusableElements[focusState.settingsFocusIndex]) {
+    removeFocusFromSettingsControl(focusState.settingsFocusableElements[focusState.settingsFocusIndex]);
+  }
   
   // Auto-save settings when closing
   saveSettings();
@@ -1153,17 +1173,20 @@ function initializeFocusManagement() {
   ].filter(el => el !== null);
   
   // Settings screen focusable elements (vertical navigation)
-  // These are the interactive controls that can be navigated
-  focusState.settingsFocusableElements = [
-    { type: 'duration', name: 'Work Duration', valueEl: elements.workMinutesValue, prevBtn: elements.workMinutesPrev, nextBtn: elements.workMinutesNext, min: 5, max: 90, step: 5 },
-    { type: 'duration', name: 'Short Break', valueEl: elements.shortBreakMinutesValue, prevBtn: elements.shortBreakMinutesPrev, nextBtn: elements.shortBreakMinutesNext, min: 1, max: 30, step: 1 },
-    { type: 'duration', name: 'Long Break', valueEl: elements.longBreakMinutesValue, prevBtn: elements.longBreakMinutesPrev, nextBtn: elements.longBreakMinutesNext, min: 5, max: 60, step: 5 },
-    { type: 'duration', name: 'Cycle Length', valueEl: elements.cycleLengthValue, prevBtn: elements.cycleLengthPrev, nextBtn: elements.cycleLengthNext, min: 1, max: 10, step: 1 },
-    { type: 'toggle', name: 'Sound', element: elements.soundEnabledInput },
-    { type: 'toggle', name: 'Auto-start Breaks', element: elements.autoStartBreaksInput },
-    { type: 'toggle', name: 'Auto-start Pomodoros', element: elements.autoStartPomodorosInput },
-    { type: 'toggle', name: 'Always on Top', element: elements.alwaysOnTopToggle },
-    { type: 'toggle', name: 'Show Notifications', element: elements.showNotificationsInput },
+  // These are the interactive controls that can be navigated, organized by tab
+  const allSettingsControls = [
+    // DURATION tab
+    { type: 'duration', tab: 'duration', name: 'Work Duration', valueEl: elements.workMinutesValue, prevBtn: elements.workMinutesPrev, nextBtn: elements.workMinutesNext, min: 5, max: 90, step: 5 },
+    { type: 'duration', tab: 'duration', name: 'Short Break', valueEl: elements.shortBreakMinutesValue, prevBtn: elements.shortBreakMinutesPrev, nextBtn: elements.shortBreakMinutesNext, min: 1, max: 30, step: 1 },
+    { type: 'duration', tab: 'duration', name: 'Long Break', valueEl: elements.longBreakMinutesValue, prevBtn: elements.longBreakMinutesPrev, nextBtn: elements.longBreakMinutesNext, min: 5, max: 60, step: 5 },
+    { type: 'duration', tab: 'duration', name: 'Cycle Length', valueEl: elements.cycleLengthValue, prevBtn: elements.cycleLengthPrev, nextBtn: elements.cycleLengthNext, min: 1, max: 10, step: 1 },
+    // OPTIONS tab
+    { type: 'toggle', tab: 'options', name: 'Sound', element: elements.soundEnabledInput },
+    { type: 'toggle', tab: 'options', name: 'Auto-start Breaks', element: elements.autoStartBreaksInput },
+    { type: 'toggle', tab: 'options', name: 'Auto-start Pomodoros', element: elements.autoStartPomodorosInput },
+    { type: 'toggle', tab: 'options', name: 'Always on Top', element: elements.alwaysOnTopToggle },
+    // NOTIFICATIONS tab
+    { type: 'toggle', tab: 'notifications', name: 'Show Notifications', element: elements.showNotificationsInput },
   ].filter(item => {
     if (item.type === 'duration') {
       return item.valueEl !== null;
@@ -1172,8 +1195,16 @@ function initializeFocusManagement() {
     }
   });
   
+  // Store all controls
+  focusState.allSettingsControls = allSettingsControls;
+  
+  // Filter to current tab
+  focusState.settingsFocusableElements = allSettingsControls.filter(
+    item => item.tab === focusState.tabs[focusState.currentTabIndex]
+  );
+  
   console.log(`[Focus] Initialized ${focusState.timerFocusableElements.length} timer controls`);
-  console.log(`[Focus] Initialized ${focusState.settingsFocusableElements.length} settings controls`);
+  console.log(`[Focus] Initialized ${focusState.allSettingsControls.length} total settings controls (${focusState.settingsFocusableElements.length} in current tab: ${focusState.tabs[focusState.currentTabIndex]})`);
 }
 
 function handleKeyboardNavigation(e) {
@@ -1189,6 +1220,16 @@ function handleKeyboardNavigation(e) {
       e.preventDefault();
       e.stopPropagation();
       hideSettings();
+      return;
+    }
+  }
+  
+  // Tab key: Cycle through settings tabs
+  if (e.key === 'Tab' || e.keyCode === 9) {
+    if (isSettingsOpen) {
+      e.preventDefault();
+      e.stopPropagation();
+      cycleSettingsTabs(e.shiftKey); // Shift+Tab goes backwards
       return;
     }
   }
@@ -1255,7 +1296,14 @@ function handleTimerNavigation(key) {
 
 function handleSettingsNavigation(key) {
   const controls = focusState.settingsFocusableElements;
-  if (controls.length === 0) return;
+  const currentTab = focusState.tabs[focusState.currentTabIndex];
+  
+  console.log(`[Keyboard] Settings navigation: key=${key}, tab=${currentTab}, controls=${controls.length}, focusIndex=${focusState.settingsFocusIndex}`);
+  
+  if (controls.length === 0) {
+    console.warn('[Keyboard] No focusable controls in current tab!');
+    return;
+  }
   
   const currentControl = controls[focusState.settingsFocusIndex];
   
@@ -1273,7 +1321,7 @@ function handleSettingsNavigation(key) {
     // Add focus to new control
     const newControl = controls[focusState.settingsFocusIndex];
     addFocusToSettingsControl(newControl);
-    console.log(`[Keyboard] Settings focus: ${focusState.settingsFocusIndex} (${newControl.name})`);
+    console.log(`[Keyboard] Settings focus moved to: ${focusState.settingsFocusIndex}/${controls.length} (${newControl.name})`);
   }
   
   // Horizontal navigation (Left/Right) - adjust current control
@@ -1340,6 +1388,42 @@ function activateSettingsControl() {
     currentControl.element.checked = !currentControl.element.checked;
     autoSaveSettings();
     console.log(`[Keyboard] Activated toggle ${currentControl.name}: ${currentControl.element.checked}`);
+  }
+}
+
+function cycleSettingsTabs(reverse = false) {
+  // Remove focus from current control before switching tabs
+  const controls = focusState.settingsFocusableElements;
+  if (controls.length > 0 && controls[focusState.settingsFocusIndex]) {
+    removeFocusFromSettingsControl(controls[focusState.settingsFocusIndex]);
+  }
+  
+  // Cycle through tabs
+  if (reverse) {
+    // Shift+Tab: Go backwards
+    focusState.currentTabIndex = (focusState.currentTabIndex - 1 + focusState.tabs.length) % focusState.tabs.length;
+  } else {
+    // Tab: Go forwards
+    focusState.currentTabIndex = (focusState.currentTabIndex + 1) % focusState.tabs.length;
+  }
+  
+  const newTab = focusState.tabs[focusState.currentTabIndex];
+  switchTab(newTab);
+  
+  // Reset focus index when switching tabs
+  focusState.settingsFocusIndex = 0;
+  
+  // Update focusable elements to only show controls for the current tab
+  focusState.settingsFocusableElements = focusState.allSettingsControls.filter(
+    item => item.tab === newTab
+  );
+  
+  console.log(`[Keyboard] ${reverse ? 'Shift+' : ''}Tab pressed - switched to ${newTab} tab (${focusState.settingsFocusableElements.length} controls)`);
+  
+  // Add focus to first control in new tab
+  const newControls = focusState.settingsFocusableElements;
+  if (newControls.length > 0 && newControls[0]) {
+    addFocusToSettingsControl(newControls[0]);
   }
 }
 
