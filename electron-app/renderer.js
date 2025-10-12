@@ -844,6 +844,11 @@ function showSettings() {
   
   elements.panelsContainer.classList.add('show-settings');
   
+  // Clean up ALL timer button focus indicators when opening settings
+  focusState.timerFocusableElements.forEach(el => {
+    if (el) el.classList.remove('keyboard-focus');
+  });
+  
   // Reset to Duration tab by default
   focusState.currentTabIndex = 0;
   focusState.settingsFocusIndex = 0;
@@ -898,9 +903,14 @@ function hideSettings() {
     console.error('[Settings] panelsContainer element not found!');
   }
   
+  // Clean up ALL timer button focus indicators before resetting
+  focusState.timerFocusableElements.forEach(el => {
+    if (el) el.classList.remove('keyboard-focus');
+  });
+  
   // Reset timer focus to START button (middle button, index 1) when returning to timer
   focusState.timerFocusIndex = 1;
-  console.log('[Settings] Panel closed - timer focus reset to START button');
+  console.log('[Settings] Panel closed - timer focus reset to START button, all visual indicators cleared');
 }
 
 function switchTab(tabName) {
