@@ -116,6 +116,141 @@ body {
 }
 
 /* ============================================
+   Circular Pomodoro Queue (Around Progress Ring)
+   ============================================ */
+
+.pomodoro-queue-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 220px; /* Slightly larger than progress ring (180px) */
+  height: 220px;
+  transform: translate(-50%, calc(-50% - 28px)); /* Match progress ring position */
+  pointer-events: none;
+  z-index: 2;
+}
+
+.queue-slot {
+  position: absolute;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Position each slot in its quarter */
+/* Upper-right (12-3 o'clock): Active - 45 degrees */
+.queue-slot-active {
+  top: 15%;
+  right: 15%;
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Lower-right (3-6 o'clock): Next - 135 degrees */
+.queue-slot-next {
+  bottom: 15%;
+  right: 15%;
+  opacity: 0.7;
+  transform: scale(0.85);
+}
+
+/* Lower-left (6-9 o'clock): Third - 225 degrees */
+.queue-slot-third {
+  bottom: 15%;
+  left: 15%;
+  opacity: 0.5;
+  transform: scale(0.75);
+}
+
+/* Upper-left (9-12 o'clock): Completed - 315 degrees */
+.queue-slot-completed {
+  top: 15%;
+  left: 15%;
+  opacity: 0.3;
+  transform: scale(0.7);
+}
+
+.queue-icon {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+/* Icon bars for different pomodoro types */
+.queue-icon-bars {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5px;
+  align-items: center;
+  height: 60%;
+}
+
+.queue-icon-bar {
+  height: 100%;
+  border-radius: 1px;
+}
+
+/* 25/5 type: Red/pink theme */
+.queue-icon[data-type="25"] {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.queue-icon[data-type="25"] .queue-icon-bar-focus {
+  background: #ef4444;
+  width: 8px;
+}
+
+.queue-icon[data-type="25"] .queue-icon-bar-break {
+  background: #f87171;
+  width: 2px;
+}
+
+/* 50/10 type: Orange theme */
+.queue-icon[data-type="50"] {
+  border-color: rgba(249, 115, 22, 0.5);
+  background: rgba(249, 115, 22, 0.1);
+}
+
+.queue-icon[data-type="50"] .queue-icon-bar-focus {
+  background: #f97316;
+  width: 8px;
+}
+
+.queue-icon[data-type="50"] .queue-icon-bar-break {
+  background: #fb923c;
+  width: 3px;
+}
+
+/* Hide empty slots */
+.queue-icon:empty {
+  opacity: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+/* Animation for rotation */
+@keyframes rotate-clockwise {
+  from {
+    transform: rotate(0deg) translateX(110px) rotate(0deg);
+  }
+  to {
+    transform: rotate(90deg) translateX(110px) rotate(-90deg);
+  }
+}
+
+/* ============================================
    Timer Content (Inside Progress Ring)
    ============================================ */
 
@@ -140,6 +275,44 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Pomodoro Type Indicator (above progress ring) */
+.timer-preset-indicator {
+  display: flex;
+  gap: 0.5px;
+  align-items: center;
+  justify-content: center;
+  height: 3px;
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+}
+
+.timer-preset-bar {
+  height: 3px;
+  border-radius: 1.5px;
+}
+
+.timer-preset-bar-focus {
+  width: 12px;
+  background: #ef4444;
+}
+
+.timer-preset-bar-break {
+  width: 2.5px;
+  background: #10b981;
+}
+
+/* 50/10 preset uses different widths */
+.timer-preset-indicator[data-preset="50"] .timer-preset-bar-focus {
+  width: 12px;
+}
+
+.timer-preset-indicator[data-preset="50"] .timer-preset-bar-break {
+  width: 5px;
 }
 
 .phase-icon svg {
@@ -177,7 +350,15 @@ body {
 }
 
 .dot.lit-green {
-  background: #10b981; /* Green for completed pomodoros */
+  background: #10b981; /* Green for completed pomodoros (default) */
+}
+
+.dot.lit-red {
+  background: #ef4444; /* Red/pink for 25/5 pomodoros */
+}
+
+.dot.lit-orange {
+  background: #f97316; /* Orange for 50/10 pomodoros */
 }
 
 .dot.lit-yellow {

@@ -38,6 +38,10 @@ const state = {
   reflectionStartTime: null,
   reflectionMinMinutes: 10,
   
+  // Pomodoro Queue (circular display around ring)
+  pomodoroQueue: [], // Array of {type: '25' or '50', workMin: 25 or 50, breakMin: 5 or 10}
+  currentPomodoroIndex: 0, // Which one in the queue is currently active
+  
   // Configuration
   config: {
     workMinutes: 25,
@@ -121,6 +125,9 @@ function init() {
   
   // Load saved settings
   loadSettings();
+  
+  // Initialize preset indicator
+  updateTimerPresetIndicator(state.config.workMinutes, state.config.shortBreakMinutes);
   
   // Set up event listeners for timer controls
   elements.startPauseBtn.addEventListener('click', handleStartPause);
@@ -372,7 +379,15 @@ function handleReset() {
   state.isInCooldown = false;
   state.cooldownStartTime = null;
   
+  // Clear queue (removes queued items, keeps current if exists)
+  if (state.pomodoroQueue.length > 1) {
+    // Remove all except current
+    state.pomodoroQueue = state.pomodoroQueue.slice(0, state.currentPomodoroIndex + 1);
+    console.log('[Timer] Cleared queued items, kept current');
+  }
+  
   updateUI();
+  updatePomodoroQueue();
   sendStateUpdate(); // Notify toolbar
 }
 
@@ -472,6 +487,21 @@ function onPhaseComplete() {
     state.pomodorosCycleCount++;
     console.log(`[Timer] Completed pomodoros: ${state.completedPomodoros}/4 (cycle: ${state.pomodorosCycleCount})`);
     
+    // Advance to next pomodoro in queue
+    const nextPomodoro = advanceQueue();
+    if (nextPomodoro) {
+      console.log('[Timer] Advancing to next pomodoro in queue:', nextPomodoro);
+      // Update config for next pomodoro
+      state.config.workMinutes = nextPomodoro.workMin;
+      state.config.shortBreakMinutes = nextPomodoro.breakMin;
+      rustCore.setConfig(
+        nextPomodoro.workMin,
+        nextPomodoro.breakMin,
+        state.config.longBreakMinutes,
+        state.config.cycleLength
+      );
+    }
+    
     // Check if we've completed 4 pomodoros
     if (state.completedPomodoros >= 4) {
       console.log('[Timer] 4 pomodoros completed! Entering REFLECT period');
@@ -479,6 +509,9 @@ function onPhaseComplete() {
       state.reflectionStartTime = Date.now();
       state.phase = 'reflect';
       state.completedPomodoros = 4; // Keep at 4 to show all green dots
+      // Clear queue for new cycle after reflection
+      state.pomodoroQueue = [];
+      state.currentPomodoroIndex = 0;
     } else {
       state.phase = 'focus'; // Stay in focus phase for next pomodoro
     }
@@ -492,6 +525,7 @@ function onPhaseComplete() {
   }
   
   updateUI();
+  updatePomodoroQueue();
 }
 
 /* ============================================
@@ -713,10 +747,22 @@ function updateProgressDots() {
   dots.forEach((dot, index) => {
     dot.className = 'dot'; // Reset classes
     
-    // First, always show the base green dots for completed pomodoros
+    // First, show colored dots for completed pomodoros based on type
     const isCompletedPomodoro = index < state.completedPomodoros;
     if (isCompletedPomodoro) {
-      dot.classList.add('lit-green');
+      // Get the type of this completed pomodoro from the queue
+      if (state.pomodoroQueue[index]) {
+        const type = state.pomodoroQueue[index].type;
+        if (type === '25') {
+          dot.classList.add('lit-red'); // Red for 25/5
+        } else if (type === '50') {
+          dot.classList.add('lit-orange'); // Orange for 50/10
+        } else {
+          dot.classList.add('lit-green'); // Default green
+        }
+      } else {
+        dot.classList.add('lit-green'); // Default green if no queue data
+      }
     }
     
     // Then overlay special states on top
@@ -728,33 +774,45 @@ function updateProgressDots() {
       const remainingYellowDots = 4 - state.cooldownProgress;
       if (index < remainingYellowDots) {
         // Override with yellow (this dot hasn't cleared yet)
-        dot.classList.remove('lit-green');
+        dot.classList.remove('lit-green', 'lit-red', 'lit-orange');
         dot.classList.add('lit-yellow');
       }
-      // Else: keep the green if it was a completed pomodoro
+      // Else: keep the colored dot if it was a completed pomodoro
     }
     // Check warm-up state (filling yellow from left to right)
     else if (state.runState === 'paused' && !state.isInBreakState && state.pauseWarmUpProgress > 0) {
       // Yellow dots fill from left to right
       if (index < state.pauseWarmUpProgress) {
         // Override with yellow (warm-up in progress)
-        dot.classList.remove('lit-green');
+        dot.classList.remove('lit-green', 'lit-red', 'lit-orange');
         dot.classList.add('lit-yellow');
       }
-      // Else: keep the green if it was a completed pomodoro
+      // Else: keep the colored dot if it was a completed pomodoro
     }
     // Check break state (all 4 yellow blinking, overrides everything)
     else if (state.isInBreakState) {
-      dot.classList.remove('lit-green');
+      dot.classList.remove('lit-green', 'lit-red', 'lit-orange');
       dot.classList.add('lit-yellow');
       dot.classList.add('blink');
     }
-    // Check reflection period (force all 4 to green)
+    // Check reflection period (force all 4 to their original colors)
     else if (state.inReflectionPeriod) {
-      // Show all 4 green dots during reflection
-      if (index < 4) {
+      // Show all 4 colored dots during reflection
+      if (index < 4 && !dot.classList.contains('lit-red') && !dot.classList.contains('lit-orange')) {
         dot.classList.remove('lit-yellow');
-        dot.classList.add('lit-green');
+        // Re-apply the colored dot based on queue
+        if (state.pomodoroQueue[index]) {
+          const type = state.pomodoroQueue[index].type;
+          if (type === '25') {
+            dot.classList.add('lit-red');
+          } else if (type === '50') {
+            dot.classList.add('lit-orange');
+          } else {
+            dot.classList.add('lit-green');
+          }
+        } else {
+          dot.classList.add('lit-green');
+        }
       }
     }
   });
@@ -798,30 +856,289 @@ function updateBubbleClass() {
 }
 
 /* ============================================
+   Pomodoro Queue (Circular Display)
+   ============================================ */
+
+function updatePomodoroQueue() {
+  console.log('[Queue] Updating display, queue:', state.pomodoroQueue, 'currentIndex:', state.currentPomodoroIndex);
+  
+  // Get queue icon elements
+  const activeIcon = document.getElementById('queue-icon-active');
+  const nextIcon = document.getElementById('queue-icon-next');
+  const thirdIcon = document.getElementById('queue-icon-third');
+  const completedIcon = document.getElementById('queue-icon-completed');
+  
+  if (!activeIcon || !nextIcon || !thirdIcon || !completedIcon) return;
+  
+  // Clear all icons
+  activeIcon.innerHTML = '';
+  nextIcon.innerHTML = '';
+  thirdIcon.innerHTML = '';
+  completedIcon.innerHTML = '';
+  
+  // Remove data attributes
+  activeIcon.removeAttribute('data-type');
+  nextIcon.removeAttribute('data-type');
+  thirdIcon.removeAttribute('data-type');
+  completedIcon.removeAttribute('data-type');
+  
+  // Populate icons based on queue
+  const queue = state.pomodoroQueue;
+  const currentIdx = state.currentPomodoroIndex;
+  
+  // Active (current pomodoro)
+  if (queue[currentIdx]) {
+    renderQueueIcon(activeIcon, queue[currentIdx]);
+  }
+  
+  // Next in line
+  if (queue[currentIdx + 1]) {
+    renderQueueIcon(nextIcon, queue[currentIdx + 1]);
+  }
+  
+  // Third in queue
+  if (queue[currentIdx + 2]) {
+    renderQueueIcon(thirdIcon, queue[currentIdx + 2]);
+  }
+  
+  // Completed (previous pomodoro)
+  if (currentIdx > 0 && queue[currentIdx - 1]) {
+    renderQueueIcon(completedIcon, queue[currentIdx - 1]);
+  }
+}
+
+function renderQueueIcon(iconElement, pomodoroData) {
+  const type = pomodoroData.type; // '25' or '50'
+  iconElement.setAttribute('data-type', type);
+  
+  // Create bars representing the pomodoro type
+  const barsContainer = document.createElement('div');
+  barsContainer.className = 'queue-icon-bars';
+  
+  const focusBar = document.createElement('div');
+  focusBar.className = 'queue-icon-bar queue-icon-bar-focus';
+  
+  const breakBar = document.createElement('div');
+  breakBar.className = 'queue-icon-bar queue-icon-bar-break';
+  
+  barsContainer.appendChild(focusBar);
+  barsContainer.appendChild(breakBar);
+  iconElement.appendChild(barsContainer);
+}
+
+function addToQueue(workMin, breakMin) {
+  const type = (workMin === 25 && breakMin === 5) ? '25' : '50';
+  
+  // Maximum 4 pomodoros in queue
+  if (state.pomodoroQueue.length >= 4) {
+    console.log('[Queue] Queue is full (4 pomodoros max)');
+    return false;
+  }
+  
+  state.pomodoroQueue.push({
+    type: type,
+    workMin: workMin,
+    breakMin: breakMin
+  });
+  
+  console.log('[Queue] Added to queue:', type, 'Total:', state.pomodoroQueue.length);
+  updatePomodoroQueue();
+  return true;
+}
+
+function advanceQueue() {
+  if (state.currentPomodoroIndex < state.pomodoroQueue.length - 1) {
+    state.currentPomodoroIndex++;
+    console.log('[Queue] Advanced to index', state.currentPomodoroIndex);
+    updatePomodoroQueue();
+    return state.pomodoroQueue[state.currentPomodoroIndex];
+  }
+  return null;
+}
+
+function clearQueue() {
+  // Only clear if timer is stopped
+  if (state.runState !== 'idle') {
+    console.log('[Queue] Cannot clear queue while timer is active');
+    return false;
+  }
+  
+  state.pomodoroQueue = [];
+  state.currentPomodoroIndex = 0;
+  console.log('[Queue] Cleared');
+  updatePomodoroQueue();
+  return true;
+}
+
+/* ============================================
    Timer Presets
    ============================================ */
 
 function applyPreset(workMinutes, breakMinutes) {
-  console.log(`[Preset] Applying ${workMinutes}/${breakMinutes} preset`);
+  console.log(`[Preset] ===== APPLYING ${workMinutes}/${breakMinutes} PRESET =====`);
+  console.log(`[Preset] Current state:`, {
+    runState: state.runState,
+    millisRemaining: state.millisRemaining,
+    millisTotal: state.millisTotal,
+    currentWorkMinutes: state.config.workMinutes,
+    currentBreakMinutes: state.config.shortBreakMinutes,
+    queueLength: state.pomodoroQueue.length,
+  });
   
-  // Only allow preset changes when timer is idle or stopped
+  // If timer is running, add to queue instead
   if (state.runState !== 'idle') {
-    console.log('[Preset] Timer is running, stopping first...');
-    handleReset();
+    console.log('[Preset] Timer is active - adding to queue');
+    const added = addToQueue(workMinutes, breakMinutes);
+    if (!added) {
+      // Queue is full, show warning
+      showPresetWarning();
+    }
+    return;
   }
   
-  // Update config
+  // Timer is idle - set as current preset and start queue
+  console.log('[Preset] Timer is idle - setting preset and initializing queue');
+  
+  // Update config FIRST
+  console.log(`[Preset] Updating config from ${state.config.workMinutes}/${state.config.shortBreakMinutes} to ${workMinutes}/${breakMinutes}`);
   state.config.workMinutes = workMinutes;
   state.config.shortBreakMinutes = breakMinutes;
   
-  // Update timer
+  // Update Rust core stub config
+  rustCore.setConfig(
+    state.config.workMinutes,
+    state.config.shortBreakMinutes,
+    state.config.longBreakMinutes,
+    state.config.cycleLength
+  );
+  
+  console.log(`[Preset] Config updated:`, state.config);
+  
+  // Update settings panel display values to reflect the preset
+  if (elements.workMinutesValue) {
+    elements.workMinutesValue.textContent = workMinutes;
+  }
+  if (elements.shortBreakMinutesValue) {
+    elements.shortBreakMinutesValue.textContent = breakMinutes;
+  }
+  
+  // Save to localStorage so preset persists
+  const updatedConfig = { ...state.config };
+  localStorage.setItem('focus-config', JSON.stringify(updatedConfig));
+  
+  // Update timer state directly (bypass Rust core issues)
+  console.log(`[Preset] Setting timer to ${workMinutes} minutes = ${workMinutes * 60 * 1000}ms`);
   state.millisRemaining = workMinutes * 60 * 1000;
   state.millisTotal = state.millisRemaining;
+  state.phase = 'focus';
+  state.runState = 'idle';
+  console.log(`[Preset] Timer state updated:`, {
+    millisRemaining: state.millisRemaining,
+    millisTotal: state.millisTotal,
+    phase: state.phase,
+    runState: state.runState,
+  });
+  
+  // Reset all pomodoro tracking
+  state.completedPomodoros = 0;
+  state.pomodorosCycleCount = 0;
+  state.pauseWarmUpProgress = 0;
+  state.isInBreakState = false;
+  state.isInCooldown = false;
+  state.cooldownProgress = 0;
+  state.inReflectionPeriod = false;
+  state.pauseStartTime = null;
+  state.pauseDuration = 0;
+  
+  // Stop all intervals
+  if (timerInterval) clearInterval(timerInterval);
+  if (state.warmUpIntervalId) clearInterval(state.warmUpIntervalId);
+  if (state.cooldownIntervalId) clearInterval(state.cooldownIntervalId);
+  if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
+  stopBreakBlink();
+  
+  // Update preset indicator in timer widget
+  updateTimerPresetIndicator(workMinutes, breakMinutes);
+  
+  // Notify toolbar to update preset buttons
+  ipcRenderer.send('update-toolbar-presets', {
+    workMinutes: workMinutes,
+    breakMinutes: breakMinutes
+  });
+  
+  // Initialize queue with this preset if queue is empty
+  if (state.pomodoroQueue.length === 0) {
+    state.pomodoroQueue = [{
+      type: (workMinutes === 25 && breakMinutes === 5) ? '25' : '50',
+      workMin: workMinutes,
+      breakMin: breakMinutes
+    }];
+    state.currentPomodoroIndex = 0;
+    console.log('[Preset] Initialized queue with preset');
+  }
   
   // Update UI
   updateUI();
+  updatePomodoroQueue();
+  sendStateUpdate(); // Notify toolbar
   
-  console.log(`[Preset] Applied: ${workMinutes} min work, ${breakMinutes} min break`);
+  console.log(`[Preset] Applied and saved: ${workMinutes} min work, ${breakMinutes} min break`);
+}
+
+function showPresetWarning() {
+  const bubble = document.querySelector('.bubble');
+  if (!bubble) return;
+  
+  // Flash red border 3 times
+  let flashCount = 0;
+  const flashInterval = setInterval(() => {
+    if (flashCount >= 6) { // 3 flashes = 6 toggles
+      clearInterval(flashInterval);
+      bubble.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.3)';
+      return;
+    }
+    
+    if (flashCount % 2 === 0) {
+      // Flash on
+      bubble.style.boxShadow = '0 0 0 3px #ef4444, 0 8px 32px rgba(239, 68, 68, 0.5)';
+    } else {
+      // Flash off
+      bubble.style.boxShadow = '0 8px 32px rgba(0, 0, 0, 0.3)';
+    }
+    flashCount++;
+  }, 200);
+  
+  console.log('[Preset] Warning: Reset timer before changing preset');
+}
+
+function updateTimerPresetIndicator(workMinutes, breakMinutes) {
+  const indicator = document.getElementById('timer-preset-indicator');
+  if (!indicator) return;
+  
+  const focusBar = indicator.querySelector('.timer-preset-bar-focus');
+  const breakBar = indicator.querySelector('.timer-preset-bar-break');
+  
+  // Check if values match a preset
+  if (workMinutes === 25 && breakMinutes === 5) {
+    // Show 25/5 preset indicator
+    focusBar.style.width = '12px';
+    breakBar.style.width = '2.5px';
+    indicator.setAttribute('data-preset', '25');
+    indicator.style.display = 'flex';
+    console.log('[Preset] Timer indicator updated to 25/5');
+  } else if (workMinutes === 50 && breakMinutes === 10) {
+    // Show 50/10 preset indicator
+    focusBar.style.width = '12px';
+    breakBar.style.width = '5px';
+    indicator.setAttribute('data-preset', '50');
+    indicator.style.display = 'flex';
+    console.log('[Preset] Timer indicator updated to 50/10');
+  } else {
+    // Hide indicator for custom values
+    indicator.style.display = 'none';
+    indicator.setAttribute('data-preset', 'custom');
+    console.log('[Preset] Timer indicator hidden (custom values)');
+  }
 }
 
 /* ============================================
@@ -1008,6 +1325,14 @@ function saveSettingsQuiet() {
   // Update state
   state.config = newConfig;
   
+  // Update Rust core stub config
+  rustCore.setConfig(
+    newConfig.workMinutes,
+    newConfig.shortBreakMinutes,
+    newConfig.longBreakMinutes,
+    newConfig.cycleLength
+  );
+  
   // Reset timer if idle
   if (state.runState === 'idle') {
     state.millisRemaining = newConfig.workMinutes * 60 * 1000;
@@ -1015,6 +1340,15 @@ function saveSettingsQuiet() {
     updateTimerDisplay();
     updateProgressRing();
   }
+  
+  // Update preset indicator based on new values
+  updateTimerPresetIndicator(newConfig.workMinutes, newConfig.shortBreakMinutes);
+  
+  // Notify toolbar to update preset buttons
+  ipcRenderer.send('update-toolbar-presets', {
+    workMinutes: newConfig.workMinutes,
+    breakMinutes: newConfig.shortBreakMinutes
+  });
   
   // Save to localStorage
   localStorage.setItem('focus-config', JSON.stringify(newConfig));
@@ -1040,6 +1374,14 @@ function loadSettings() {
       console.error('[Settings] Failed to load:', e);
     }
   }
+  
+  // Update Rust core stub with loaded config
+  rustCore.setConfig(
+    state.config.workMinutes,
+    state.config.shortBreakMinutes,
+    state.config.longBreakMinutes,
+    state.config.cycleLength
+  );
 }
 
 /* ============================================

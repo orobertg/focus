@@ -9,6 +9,22 @@
 class PomodoroCore {
   constructor() {
     this.session = null;
+    this.config = {
+      workMin: 25,
+      shortBreakMin: 5,
+      longBreakMin: 15,
+      cycleLen: 4,
+    };
+  }
+
+  setConfig(workMin, shortBreakMin, longBreakMin, cycleLen) {
+    this.config = {
+      workMin: workMin || 25,
+      shortBreakMin: shortBreakMin || 5,
+      longBreakMin: longBreakMin || 15,
+      cycleLen: cycleLen || 4,
+    };
+    console.log('[CoreStub] Config updated:', this.config);
   }
 
   startWork() {
@@ -17,15 +33,16 @@ class PomodoroCore {
       sessionId: crypto.randomUUID(),
       phase: 'Work',
       runState: 'Running',
-      millisTotal: 25 * 60 * 1000,
+      millisTotal: this.config.workMin * 60 * 1000,
       startedAt: now,
       carriedMs: 0,
       cycleIndex: 1,
-      workMin: 25,
-      shortBreakMin: 5,
-      longBreakMin: 15,
-      cycleLen: 4,
+      workMin: this.config.workMin,
+      shortBreakMin: this.config.shortBreakMin,
+      longBreakMin: this.config.longBreakMin,
+      cycleLen: this.config.cycleLen,
     };
+    console.log('[CoreStub] Starting work session with', this.config.workMin, 'minutes');
     return this.getSnapshot();
   }
 
@@ -90,6 +107,7 @@ class PomodoroCore {
 const core = new PomodoroCore();
 
 module.exports = {
+  setConfig: (workMin, shortBreakMin, longBreakMin, cycleLen) => core.setConfig(workMin, shortBreakMin, longBreakMin, cycleLen),
   startWork: () => JSON.stringify(core.startWork()),
   pauseTimer: () => JSON.stringify(core.pauseTimer()),
   resumeTimer: () => JSON.stringify(core.resumeTimer()),
