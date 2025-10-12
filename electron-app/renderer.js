@@ -91,6 +91,28 @@ let timerInterval = null;
 let pauseBlinkInterval = null;
 
 /* ============================================
+   Global Functions (Must be available immediately)
+   ============================================ */
+
+// Expose closeSettings globally for inline onclick handler
+// This MUST be defined before init() runs so it's available immediately
+window.closeSettings = function() {
+  console.log('[Settings] Close button clicked via global inline handler');
+  
+  // Get elements directly (don't rely on cached elements object)
+  const panelsContainer = document.getElementById('panels-container');
+  if (panelsContainer) {
+    panelsContainer.classList.remove('show-settings');
+    console.log('[Settings] Removed show-settings class via global handler');
+  }
+  
+  // Try to call saveSettings if it exists
+  if (typeof saveSettings === 'function') {
+    saveSettings();
+  }
+};
+
+/* ============================================
    Initialization
    ============================================ */
 
@@ -807,6 +829,8 @@ function applyPreset(workMinutes, breakMinutes) {
    ============================================ */
 
 function showSettings() {
+  console.log('[Settings] Opening settings panel');
+  
   elements.panelsContainer.classList.add('show-settings');
   
   // Switch to Duration tab by default
@@ -818,6 +842,16 @@ function showSettings() {
   elements.autoStartBreaksInput.checked = state.config.autoStartBreaks !== undefined ? state.config.autoStartBreaks : true;
   elements.autoStartPomodorosInput.checked = state.config.autoStartPomodoros || false;
   elements.showNotificationsInput.checked = state.config.showNotifications !== undefined ? state.config.showNotifications : true;
+  
+  // Ensure close button is clickable by refreshing listener
+  setTimeout(() => {
+    const closeBtn = document.getElementById('close-settings-btn');
+    if (closeBtn) {
+      console.log('[Settings] Close button is in DOM and ready');
+      console.log('[Settings] Close button offsetParent:', closeBtn.offsetParent);
+      console.log('[Settings] Close button getBoundingClientRect:', closeBtn.getBoundingClientRect());
+    }
+  }, 50);
 }
 
 function hideSettings() {
@@ -979,7 +1013,7 @@ function saveSettingsQuiet() {
     state.millisRemaining = newConfig.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
-    updateProgressCircle();
+    updateProgressRing();
   }
   
   // Save to localStorage
