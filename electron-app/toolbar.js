@@ -11,6 +11,9 @@ console.log('[Toolbar] Script loaded');
 const elements = {
   toolbarPlayBtn: document.getElementById('toolbar-play-btn'),
   toolbarStopBtn: document.getElementById('toolbar-stop-btn'),
+  toolbarExtendBtn: document.getElementById('toolbar-extend-btn'),
+  toolbarPreset25Btn: document.getElementById('toolbar-preset-25'),
+  toolbarPreset50Btn: document.getElementById('toolbar-preset-50'),
   toolbarSettingsBtn: document.getElementById('toolbar-settings-btn'),
   toolbarNotesBtn: document.getElementById('toolbar-notes-btn'),
 };
@@ -28,6 +31,21 @@ function handlePlayPause() {
 function handleStop() {
   console.log('[Toolbar] Stop clicked');
   ipcRenderer.send('toolbar-action', 'reset');
+}
+
+function handleExtend() {
+  console.log('[Toolbar] Extend +5 clicked');
+  ipcRenderer.send('toolbar-action', 'extend');
+}
+
+function handlePreset25() {
+  console.log('[Toolbar] Preset 25/5 clicked');
+  ipcRenderer.send('toolbar-action', 'preset-25');
+}
+
+function handlePreset50() {
+  console.log('[Toolbar] Preset 50/10 clicked');
+  ipcRenderer.send('toolbar-action', 'preset-50');
 }
 
 function handleSettings() {
@@ -81,6 +99,9 @@ function init() {
   // Set up event listeners
   elements.toolbarPlayBtn.addEventListener('click', handlePlayPause);
   elements.toolbarStopBtn.addEventListener('click', handleStop);
+  elements.toolbarExtendBtn.addEventListener('click', handleExtend);
+  elements.toolbarPreset25Btn.addEventListener('click', handlePreset25);
+  elements.toolbarPreset50Btn.addEventListener('click', handlePreset50);
   elements.toolbarSettingsBtn.addEventListener('click', handleSettings);
   elements.toolbarNotesBtn.addEventListener('click', handleNotes);
   

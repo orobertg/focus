@@ -43,12 +43,27 @@ const elements = {
   startPauseBtn: document.getElementById('start-pause-btn'),
   resetBtn: document.getElementById('reset-btn'),
   settingsBtn: document.getElementById('settings-btn'),
-  saveSettingsBtn: document.getElementById('save-settings-btn'),
-  workMinutesInput: document.getElementById('work-minutes'),
-  shortBreakMinutesInput: document.getElementById('short-break-minutes'),
-  longBreakMinutesInput: document.getElementById('long-break-minutes'),
-  cycleLengthInput: document.getElementById('cycle-length'),
+  closeSettingsBtn: document.getElementById('close-settings-btn'),
+  tabDuration: document.getElementById('tab-duration'),
+  tabNotifications: document.getElementById('tab-notifications'),
+  contentDuration: document.getElementById('content-duration'),
+  contentNotifications: document.getElementById('content-notifications'),
+  workMinutesValue: document.getElementById('work-minutes-value'),
+  workMinutesPrev: document.getElementById('work-minutes-prev'),
+  workMinutesNext: document.getElementById('work-minutes-next'),
+  shortBreakMinutesValue: document.getElementById('short-break-minutes-value'),
+  shortBreakMinutesPrev: document.getElementById('short-break-minutes-prev'),
+  shortBreakMinutesNext: document.getElementById('short-break-minutes-next'),
+  longBreakMinutesValue: document.getElementById('long-break-minutes-value'),
+  longBreakMinutesPrev: document.getElementById('long-break-minutes-prev'),
+  longBreakMinutesNext: document.getElementById('long-break-minutes-next'),
+  cycleLengthValue: document.getElementById('cycle-length-value'),
+  cycleLengthPrev: document.getElementById('cycle-length-prev'),
+  cycleLengthNext: document.getElementById('cycle-length-next'),
   soundEnabledInput: document.getElementById('sound-enabled'),
+  autoStartBreaksInput: document.getElementById('auto-start-breaks'),
+  autoStartPomodorosInput: document.getElementById('auto-start-pomodoros'),
+  showNotificationsInput: document.getElementById('show-notifications'),
 };
 
 // Timer interval
@@ -69,7 +84,21 @@ function init() {
   elements.startPauseBtn.addEventListener('click', handleStartPause);
   elements.resetBtn.addEventListener('click', handleReset);
   elements.settingsBtn.addEventListener('click', () => showSettings());
-  elements.saveSettingsBtn.addEventListener('click', () => saveSettings());
+  
+  // Close settings button - use event delegation to ensure it works
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#close-settings-btn')) {
+      console.log('[Settings] Close button clicked via delegation');
+      hideSettings();
+    }
+  });
+  
+  // Set up settings tabs
+  elements.tabDuration.addEventListener('click', () => switchTab('duration'));
+  elements.tabNotifications.addEventListener('click', () => switchTab('notifications'));
+  
+  // Set up slider listeners for real-time updates
+  setupSliderListeners();
   
   // Listen for toolbar commands via IPC
   ipcRenderer.on('toolbar-command', (event, action) => {
@@ -80,6 +109,15 @@ function init() {
         break;
       case 'reset':
         handleReset();
+        break;
+      case 'extend':
+        handleExtend();
+        break;
+      case 'preset-25':
+        applyPreset(25, 5);
+        break;
+      case 'preset-50':
+        applyPreset(50, 10);
         break;
       case 'notes':
         handleNotes();
@@ -226,6 +264,26 @@ function handleReset() {
   
   updateUI();
   sendStateUpdate(); // Notify toolbar
+}
+
+function handleExtend() {
+  console.log('[Timer] Extend +5 clicked');
+  
+  // Can only extend when timer is running or paused (not idle)
+  if (state.runState === 'idle') {
+    console.log('[Timer] Cannot extend - timer is idle');
+    return;
+  }
+  
+  // Add 5 minutes (300,000 milliseconds)
+  const extensionMillis = 5 * 60 * 1000;
+  state.millisRemaining += extensionMillis;
+  state.millisTotal += extensionMillis;
+  
+  console.log(`[Timer] Extended by 5 minutes. New total: ${Math.ceil(state.millisRemaining / 1000 / 60)} minutes`);
+  
+  // Update UI
+  updateUI();
 }
 
 // Settings are now handled inline - see Settings Panel section below
@@ -533,32 +591,192 @@ function updateBubbleClass() {
 }
 
 /* ============================================
+   Timer Presets
+   ============================================ */
+
+function applyPreset(workMinutes, breakMinutes) {
+  console.log(`[Preset] Applying ${workMinutes}/${breakMinutes} preset`);
+  
+  // Only allow preset changes when timer is idle or stopped
+  if (state.runState !== 'idle') {
+    console.log('[Preset] Timer is running, stopping first...');
+    handleReset();
+  }
+  
+  // Update config
+  state.config.workMinutes = workMinutes;
+  state.config.shortBreakMinutes = breakMinutes;
+  
+  // Update timer
+  state.millisRemaining = workMinutes * 60 * 1000;
+  state.millisTotal = state.millisRemaining;
+  
+  // Update UI
+  updateUI();
+  
+  console.log(`[Preset] Applied: ${workMinutes} min work, ${breakMinutes} min break`);
+}
+
+/* ============================================
    Settings Panel
    ============================================ */
 
 function showSettings() {
   elements.panelsContainer.classList.add('show-settings');
   
+  // Switch to Duration tab by default
+  switchTab('duration');
+  
   // Populate settings with current values
-  elements.workMinutesInput.value = state.config.workMinutes;
-  elements.shortBreakMinutesInput.value = state.config.shortBreakMinutes;
-  elements.longBreakMinutesInput.value = state.config.longBreakMinutes;
-  elements.cycleLengthInput.value = state.config.cycleLength;
+  updateSliderValues();
   elements.soundEnabledInput.checked = state.config.soundEnabled || false;
+  elements.autoStartBreaksInput.checked = state.config.autoStartBreaks !== undefined ? state.config.autoStartBreaks : true;
+  elements.autoStartPomodorosInput.checked = state.config.autoStartPomodoros || false;
+  elements.showNotificationsInput.checked = state.config.showNotifications !== undefined ? state.config.showNotifications : true;
 }
 
 function hideSettings() {
+  console.log('[Settings] Closing settings panel');
+  
+  // Auto-save settings when closing
+  saveSettings();
+  
   elements.panelsContainer.classList.remove('show-settings');
+  
+  console.log('[Settings] Panel closed');
+}
+
+function switchTab(tabName) {
+  // Update tab buttons
+  document.querySelectorAll('.settings-tab').forEach(tab => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add('active');
+    } else {
+      tab.classList.remove('active');
+    }
+  });
+  
+  // Update tab content
+  document.querySelectorAll('.settings-tab-content').forEach(content => {
+    if (content.id === `content-${tabName}`) {
+      content.classList.add('active');
+    } else {
+      content.classList.remove('active');
+    }
+  });
+}
+
+function setupSliderListeners() {
+  // Work minutes buttons
+  elements.workMinutesPrev.addEventListener('click', () => {
+    let value = parseInt(elements.workMinutesValue.textContent);
+    if (value > 5) {
+      value -= 5;
+      elements.workMinutesValue.textContent = value.toString().padStart(2, '0');
+      autoSaveSettings();
+    }
+  });
+  elements.workMinutesNext.addEventListener('click', () => {
+    let value = parseInt(elements.workMinutesValue.textContent);
+    if (value < 90) {
+      value += 5;
+      elements.workMinutesValue.textContent = value.toString().padStart(2, '0');
+      autoSaveSettings();
+    }
+  });
+  
+  // Short break buttons
+  elements.shortBreakMinutesPrev.addEventListener('click', () => {
+    let value = parseInt(elements.shortBreakMinutesValue.textContent);
+    if (value > 1) {
+      value -= 1;
+      elements.shortBreakMinutesValue.textContent = value.toString().padStart(2, '0');
+      autoSaveSettings();
+    }
+  });
+  elements.shortBreakMinutesNext.addEventListener('click', () => {
+    let value = parseInt(elements.shortBreakMinutesValue.textContent);
+    if (value < 30) {
+      value += 1;
+      elements.shortBreakMinutesValue.textContent = value.toString().padStart(2, '0');
+      autoSaveSettings();
+    }
+  });
+  
+  // Long break buttons
+  elements.longBreakMinutesPrev.addEventListener('click', () => {
+    let value = parseInt(elements.longBreakMinutesValue.textContent);
+    if (value > 5) {
+      value -= 5;
+      elements.longBreakMinutesValue.textContent = value;
+      autoSaveSettings();
+    }
+  });
+  elements.longBreakMinutesNext.addEventListener('click', () => {
+    let value = parseInt(elements.longBreakMinutesValue.textContent);
+    if (value < 60) {
+      value += 5;
+      elements.longBreakMinutesValue.textContent = value;
+      autoSaveSettings();
+    }
+  });
+  
+  // Cycle length buttons
+  elements.cycleLengthPrev.addEventListener('click', () => {
+    let value = parseInt(elements.cycleLengthValue.textContent);
+    if (value > 1) {
+      value -= 1;
+      elements.cycleLengthValue.textContent = value;
+      autoSaveSettings();
+    }
+  });
+  elements.cycleLengthNext.addEventListener('click', () => {
+    let value = parseInt(elements.cycleLengthValue.textContent);
+    if (value < 10) {
+      value += 1;
+      elements.cycleLengthValue.textContent = value;
+      autoSaveSettings();
+    }
+  });
+  
+  // Toggle switches
+  elements.soundEnabledInput.addEventListener('change', autoSaveSettings);
+  elements.autoStartBreaksInput.addEventListener('change', autoSaveSettings);
+  elements.autoStartPomodorosInput.addEventListener('change', autoSaveSettings);
+  elements.showNotificationsInput.addEventListener('change', autoSaveSettings);
+}
+
+function updateSliderValues() {
+  elements.workMinutesValue.textContent = state.config.workMinutes.toString().padStart(2, '0');
+  elements.shortBreakMinutesValue.textContent = state.config.shortBreakMinutes.toString().padStart(2, '0');
+  elements.longBreakMinutesValue.textContent = state.config.longBreakMinutes;
+  elements.cycleLengthValue.textContent = state.config.cycleLength;
+}
+
+function autoSaveSettings() {
+  // Debounce auto-save to avoid excessive saves
+  clearTimeout(autoSaveSettings.timeout);
+  autoSaveSettings.timeout = setTimeout(() => {
+    saveSettingsQuiet();
+  }, 500);
 }
 
 function saveSettings() {
-  // Read values from inputs
+  saveSettingsQuiet();
+  console.log('[Settings] Saved and closed');
+}
+
+function saveSettingsQuiet() {
+  // Read values from display elements
   const newConfig = {
-    workMinutes: parseInt(elements.workMinutesInput.value, 10),
-    shortBreakMinutes: parseInt(elements.shortBreakMinutesInput.value, 10),
-    longBreakMinutes: parseInt(elements.longBreakMinutesInput.value, 10),
-    cycleLength: parseInt(elements.cycleLengthInput.value, 10),
+    workMinutes: parseInt(elements.workMinutesValue.textContent, 10),
+    shortBreakMinutes: parseInt(elements.shortBreakMinutesValue.textContent, 10),
+    longBreakMinutes: parseInt(elements.longBreakMinutesValue.textContent, 10),
+    cycleLength: parseInt(elements.cycleLengthValue.textContent, 10),
     soundEnabled: elements.soundEnabledInput.checked,
+    autoStartBreaks: elements.autoStartBreaksInput.checked,
+    autoStartPomodoros: elements.autoStartPomodorosInput.checked,
+    showNotifications: elements.showNotificationsInput.checked,
   };
   
   // Update state
@@ -574,11 +792,6 @@ function saveSettings() {
   
   // Save to localStorage
   localStorage.setItem('focus-config', JSON.stringify(newConfig));
-  
-  // Close settings panel
-  hideSettings();
-  
-  console.log('[Settings] Saved:', newConfig);
 }
 
 function loadSettings() {
@@ -592,6 +805,9 @@ function loadSettings() {
         longBreakMinutes: config.longBreakMinutes || 15,
         cycleLength: config.cycleLength || 4,
         soundEnabled: config.soundEnabled !== undefined ? config.soundEnabled : true,
+        autoStartBreaks: config.autoStartBreaks !== undefined ? config.autoStartBreaks : true,
+        autoStartPomodoros: config.autoStartPomodoros || false,
+        showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
       };
       console.log('[Settings] Loaded:', state.config);
     } catch (e) {

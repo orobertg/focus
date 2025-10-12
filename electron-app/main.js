@@ -25,8 +25,8 @@ function createWindow() {
   // Load saved position or use defaults
   const savedPosition = store.get('windowPosition', { x: null, y: null });
   const windowOptions = {
-    width: 280, // Just the timer
-    height: 280,
+    width: 280,
+    height: 340, // Increased to fit settings panel without scrollbar
     frame: false,
     transparent: false, // Solid window, no transparency
     alwaysOnTop: true,
@@ -86,7 +86,7 @@ function createToolbarWindow() {
   // Load saved toolbar position or calculate default (above main window)
   const savedToolbarPosition = store.get('toolbarPosition', { x: null, y: null });
   const toolbarOptions = {
-    width: 160,
+    width: 320,
     height: 52,
     frame: false,
     transparent: false, // Solid window, no transparency
@@ -109,7 +109,7 @@ function createToolbarWindow() {
   } else if (mainWindow) {
     const mainPos = mainWindow.getPosition();
     const mainSize = mainWindow.getSize();
-    toolbarOptions.x = mainPos[0] + (mainSize[0] / 2) - 80; // Center above main
+    toolbarOptions.x = mainPos[0] + (mainSize[0] / 2) - 160; // Center above main (half of 320px width)
     toolbarOptions.y = mainPos[1] - 60; // 60px above main window
   }
   
