@@ -101,6 +101,7 @@
       <!-- Tab Navigation -->
       <div class="settings-tabs">
         <button class="settings-tab active" data-tab="duration" id="tab-duration">DURATION</button>
+        <button class="settings-tab" data-tab="options" id="tab-options">OPTIONS</button>
         <button class="settings-tab" data-tab="notifications" id="tab-notifications">NOTIFICATIONS</button>
       </div>
       
@@ -180,8 +181,8 @@
           
         </div>
         
-        <!-- Notifications Tab -->
-        <div class="settings-tab-content" id="content-notifications">
+        <!-- Options Tab -->
+        <div class="settings-tab-content" id="content-options">
           
           <div class="setting-row">
             <span class="setting-label">Sound</span>
@@ -206,6 +207,19 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
+          
+          <div class="setting-row">
+            <span class="setting-label">Always on Top</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="always-on-top-toggle">
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          
+        </div>
+        
+        <!-- Notifications Tab -->
+        <div class="settings-tab-content" id="content-notifications">
           
           <div class="setting-row">
             <span class="setting-label">Desktop Notifications</span>

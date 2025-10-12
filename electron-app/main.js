@@ -213,7 +213,7 @@ function createToolbarWindow() {
 }
 
 function createSettingsWindow() {
-  console.log('[Electron] Creating settings window...');
+  console.log('[Electron] Creating options window...');
   
   // Don't create if already exists
   if (settingsWindow && !settingsWindow.isDestroyed()) {
@@ -248,7 +248,7 @@ function createSettingsWindow() {
     settingsWindow = null;
   });
   
-  console.log('[Electron] Settings window created');
+  console.log('[Electron] Options window created');
 }
 
 /* ============================================
@@ -493,12 +493,24 @@ function createTray() {
   const iconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
   const trayIcon = nativeImage.createFromPath(iconPath);
   
+  if (trayIcon.isEmpty()) {
+    console.error('[Electron] Failed to load tray icon from:', iconPath);
+    // App will quit if windows close without a tray
+    return;
+  }
+  
   try {
     tray = new Tray(trayIcon);
     
+    if (!tray || tray.isDestroyed()) {
+      console.error('[Electron] Tray creation failed - tray object invalid');
+      tray = null;
+      return;
+    }
+    
     const contextMenu = Menu.buildFromTemplate([
       { 
-        label: 'Focus', 
+        label: 'Focus App', 
         type: 'normal',
         enabled: false 
       },
@@ -533,14 +545,26 @@ function createTray() {
       },
       { type: 'separator' },
       { 
-        label: 'Quit', 
+        label: 'Quit Focus App', 
         click: () => {
-          console.log('[Tray] Quit clicked');
-          // Destroy tray before quitting
+          console.log('[Tray] Quit clicked by user');
+          // Force quit - destroy everything
           if (tray && !tray.isDestroyed()) {
             tray.destroy();
             tray = null;
           }
+          
+          // Close all windows
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.destroy();
+          }
+          if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+            toolbarWindow.destroy();
+          }
+          if (settingsWindow && !settingsWindow.isDestroyed()) {
+            settingsWindow.destroy();
+          }
+          
           app.quit();
         }
       }
@@ -561,9 +585,16 @@ function createTray() {
       }
     });
     
-    console.log('[Electron] System tray created successfully');
+    // Monitor tray for destruction
+    tray.on('click', () => {
+      console.log('[Tray] Tray icon clicked (tray is responsive)');
+    });
+    
+    console.log('[Electron] ✅ System tray created successfully - app will persist in tray');
   } catch (error) {
-    console.error('[Electron] Failed to create system tray:', error);
+    console.error('[Electron] ❌ Failed to create system tray:', error);
+    tray = null;
+    // App will quit if windows close without a tray
   }
 }
 
@@ -689,9 +720,19 @@ function unregisterGlobalShortcuts() {
 
 app.whenReady().then(() => {
   console.log('[Electron] App ready!');
+  console.log('[Electron] Process ID:', process.pid);
+  console.log('[Electron] ========================================');
+  
   createWindow();
   createTray();
   registerGlobalShortcuts();
+  
+  // Verify app is properly initialized
+  console.log('[Electron] ========================================');
+  console.log('[Electron] App initialization complete');
+  console.log('[Electron] Main window:', mainWindow ? 'Created' : 'FAILED');
+  console.log('[Electron] Tray icon:', tray ? 'Created' : 'FAILED (will quit on window close)');
+  console.log('[Electron] ========================================');
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -701,13 +742,40 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // Don't quit on window close - keep running in tray
-  console.log('[Electron] All windows closed, app still running in tray');
+  // Only keep running if tray exists and is working
+  if (tray && !tray.isDestroyed()) {
+    console.log('[Electron] All windows closed, app still running in tray');
+  } else {
+    // No tray available - quit the app to avoid orphaned process
+    console.warn('[Electron] All windows closed and no tray available - quitting to avoid orphaned process');
+    app.quit();
+  }
 });
 
 app.on('will-quit', () => {
-  console.log('[Electron] App quitting...');
+  console.log('[Electron] ========================================');
+  console.log('[Electron] App is quitting...');
+  console.log('[Electron] Process ID:', process.pid);
+  
   unregisterGlobalShortcuts();
+  
+  // Destroy all windows
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.destroy();
+      console.log('[Electron] Main window destroyed');
+    }
+    if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+      toolbarWindow.destroy();
+      console.log('[Electron] Toolbar window destroyed');
+    }
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.destroy();
+      console.log('[Electron] Settings window destroyed');
+    }
+  } catch (error) {
+    console.error('[Electron] Error destroying windows:', error);
+  }
   
   // Destroy tray icon to remove it from system tray
   if (tray && !tray.isDestroyed()) {
@@ -715,6 +783,9 @@ app.on('will-quit', () => {
     tray = null;
     console.log('[Electron] Tray icon destroyed');
   }
+  
+  console.log('[Electron] Cleanup complete - process will exit');
+  console.log('[Electron] ========================================');
 });
 
 // Handle app quit from tray

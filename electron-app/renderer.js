@@ -65,8 +65,10 @@ const elements = {
   settingsBtn: document.getElementById('settings-btn'),
   closeSettingsBtn: document.getElementById('close-settings-btn'),
   tabDuration: document.getElementById('tab-duration'),
+  tabOptions: document.getElementById('tab-options'),
   tabNotifications: document.getElementById('tab-notifications'),
   contentDuration: document.getElementById('content-duration'),
+  contentOptions: document.getElementById('content-options'),
   contentNotifications: document.getElementById('content-notifications'),
   workMinutesValue: document.getElementById('work-minutes-value'),
   workMinutesPrev: document.getElementById('work-minutes-prev'),
@@ -84,6 +86,7 @@ const elements = {
   autoStartBreaksInput: document.getElementById('auto-start-breaks'),
   autoStartPomodorosInput: document.getElementById('auto-start-pomodoros'),
   showNotificationsInput: document.getElementById('show-notifications'),
+  alwaysOnTopToggle: document.getElementById('always-on-top-toggle'),
 };
 
 // Timer interval
@@ -183,6 +186,7 @@ function init() {
   
   // Set up settings tabs
   elements.tabDuration.addEventListener('click', () => switchTab('duration'));
+  elements.tabOptions.addEventListener('click', () => switchTab('options'));
   elements.tabNotifications.addEventListener('click', () => switchTab('notifications'));
   
   // Set up slider listeners for real-time updates
@@ -839,6 +843,7 @@ function showSettings() {
   // Populate settings with current values
   updateSliderValues();
   elements.soundEnabledInput.checked = state.config.soundEnabled || false;
+  elements.alwaysOnTopToggle.checked = state.config.alwaysOnTop || false;
   elements.autoStartBreaksInput.checked = state.config.autoStartBreaks !== undefined ? state.config.autoStartBreaks : true;
   elements.autoStartPomodorosInput.checked = state.config.autoStartPomodoros || false;
   elements.showNotificationsInput.checked = state.config.showNotifications !== undefined ? state.config.showNotifications : true;
@@ -970,6 +975,7 @@ function setupSliderListeners() {
   elements.autoStartBreaksInput.addEventListener('change', autoSaveSettings);
   elements.autoStartPomodorosInput.addEventListener('change', autoSaveSettings);
   elements.showNotificationsInput.addEventListener('change', autoSaveSettings);
+  elements.alwaysOnTopToggle.addEventListener('change', autoSaveSettings);
 }
 
 function updateSliderValues() {
@@ -1003,6 +1009,7 @@ function saveSettingsQuiet() {
     autoStartBreaks: elements.autoStartBreaksInput.checked,
     autoStartPomodoros: elements.autoStartPomodorosInput.checked,
     showNotifications: elements.showNotificationsInput.checked,
+    alwaysOnTop: elements.alwaysOnTopToggle.checked,
   };
   
   // Update state
@@ -1018,6 +1025,9 @@ function saveSettingsQuiet() {
   
   // Save to localStorage
   localStorage.setItem('focus-config', JSON.stringify(newConfig));
+  
+  // Send to main process for immediate window update
+  ipcRenderer.send('settings-save', newConfig);
 }
 
 function loadSettings() {
@@ -1034,8 +1044,12 @@ function loadSettings() {
         autoStartBreaks: config.autoStartBreaks !== undefined ? config.autoStartBreaks : true,
         autoStartPomodoros: config.autoStartPomodoros || false,
         showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
+        alwaysOnTop: config.alwaysOnTop || false, // Default to false
       };
       console.log('[Settings] Loaded:', state.config);
+      
+      // Send to main process on startup
+      ipcRenderer.send('settings-save', state.config);
     } catch (e) {
       console.error('[Settings] Failed to load:', e);
     }

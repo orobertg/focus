@@ -6,6 +6,7 @@
   "productName": "Focus",
   "scripts": {
     "start": "electron .",
+    "check": "node check-process.js",
     "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [

@@ -5,7 +5,7 @@
 
 const { ipcRenderer } = require('electron');
 
-console.log('[Settings] Script loaded');
+console.log('[Options] Script loaded');
 
 // DOM Elements
 const form = document.getElementById('settings-form');
@@ -31,7 +31,7 @@ ipcRenderer.send('settings-get');
 
 // Receive settings and populate form
 ipcRenderer.on('settings-data', (event, settings) => {
-  console.log('[Settings] Loaded settings:', settings);
+  console.log('[Options] Loaded settings:', settings);
   
   if (settings) {
     inputs.workMinutes.value = settings.workMinutes || 25;
@@ -49,7 +49,7 @@ ipcRenderer.on('settings-data', (event, settings) => {
 
 function handleSave(event) {
   event.preventDefault();
-  console.log('[Settings] Saving settings...');
+  console.log('[Options] Saving settings...');
   
   // Gather form data
   const settings = {
@@ -79,7 +79,7 @@ function handleSave(event) {
     return;
   }
   
-  console.log('[Settings] Valid settings:', settings);
+  console.log('[Options] Valid settings:', settings);
   
   // Send to main process
   ipcRenderer.send('settings-save', settings);
@@ -89,7 +89,7 @@ function handleSave(event) {
 }
 
 function handleCancel() {
-  console.log('[Settings] Cancelled');
+  console.log('[Options] Cancelled');
   window.close();
 }
 
@@ -98,7 +98,7 @@ function handleCancel() {
    ============================================ */
 
 function init() {
-  console.log('[Settings] Initializing...');
+  console.log('[Options] Initializing...');
   
   // Set up event listeners
   form.addEventListener('submit', handleSave);
@@ -107,7 +107,7 @@ function init() {
   // Request initial settings
   ipcRenderer.send('settings-get');
   
-  console.log('[Settings] Ready!');
+  console.log('[Options] Ready!');
 }
 
 // Wait for DOM to be ready
