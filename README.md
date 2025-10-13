@@ -3,7 +3,7 @@
 > A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![Electron](https://img.shields.io/badge/electron-38.2.2-blue)]()
 
@@ -32,7 +32,7 @@
 |----------|--------|-------------------|
 | 🪟 **Windows** | ✅ **Available** | Installer (NSIS), Portable EXE |
 | 🐧 **Linux** | ✅ **Available** | AppImage, DEB, RPM |
-| 🍎 **macOS** | ⏳ Coming Soon | Build from source |
+| 🍎 **macOS** | ✅ **Available** | DMG, ZIP (Intel & Apple Silicon) |
 
 ---
 
@@ -79,16 +79,27 @@
 
 ### 🍎 macOS
 
-**⏳ Not Yet Available**
+**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
 
-macOS builds require Mac hardware to compile and sign. We're working on making this available!
+**Choose your version:**
 
-**Options to get Focus on macOS:**
-1. **Build it yourself** — [See Development section](#-development) for instructions
-2. **Wait for official builds** — We're setting up automated macOS builds via GitHub Actions
-3. **Help us** — If you have a Mac, you can help test and contribute builds!
+- **Focus-{version}-x64.dmg** — For Intel Macs
+  - Double-click to open
+  - Drag Focus.app to Applications folder
+  - Right-click → Open on first launch (apps are unsigned)
 
-**Want to help?** Open an issue or discussion on GitHub if you'd like to contribute macOS builds.
+- **Focus-{version}-arm64.dmg** — For Apple Silicon Macs (M1, M2, M3)
+  - Double-click to open
+  - Drag Focus.app to Applications folder
+  - Right-click → Open on first launch (apps are unsigned)
+
+**Alternative:** ZIP versions also available for both architectures
+
+**Note:** Apps are unsigned. On first launch:
+1. Right-click (or Control-click) the app
+2. Select "Open"
+3. Click "Open" in the security dialog
+4. Only needed once - future launches work normally
 
 ---
 
@@ -370,10 +381,22 @@ focus/
 ### macOS
 
 **"App can't be opened" security warning**
-1. Right-click on Focus.app
-2. Select "Open"
-3. Click "Open" in the security dialog
-4. Only needed once, future launches work normally
+- Apps are unsigned (no Apple Developer certificate yet)
+- Solution:
+  1. Right-click (or Control-click) on Focus.app
+  2. Select "Open" from the menu
+  3. Click "Open" in the security dialog
+  4. Only needed once, future launches work normally
+
+**System tray icon missing**
+- macOS shows tray icons in the menu bar (top-right)
+- Focus icon should appear automatically
+- If missing, check System Preferences → Dock & Menu Bar
+
+**Keyboard shortcuts not working**
+- macOS may require accessibility permissions
+- System Preferences → Security & Privacy → Accessibility
+- Add Focus to the allowed apps list
 
 ---
 
@@ -411,7 +434,7 @@ focus/
 - ✅ Clean uninstaller
 
 **Known Limitations:**
-- macOS builds require Mac hardware
+- macOS apps are unsigned (requires right-click → Open on first launch)
 
 ---
 
