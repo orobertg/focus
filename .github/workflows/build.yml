@@ -3,13 +3,13 @@ name: Build & Release
 on:
   push:
     branches: [main, develop]
-    tags: ['v*']           # Only tagged pushes will publish
+    tags: ['v*']                 # Only tagged pushes will publish
   pull_request:
     branches: [main, develop]
   workflow_dispatch:
 
 permissions:
-  contents: write          # REQUIRED for creating/updating Releases on tag builds
+  contents: write                # Needed to create/update Releases on tag builds
 
 jobs:
   build:
@@ -43,10 +43,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: electron-app/package-lock.json
+          cache-dependency-path: electron-app/package-lock.json   # 👈 lockfile path
 
       - name: Install deps
         run: npm ci
+        working-directory: electron-app                            # 👈 run inside subfolder
 
       # (Linux only) Needed for AppImage on Ubuntu 22+/24+
       - name: Install libfuse2 (Linux)
@@ -56,11 +57,12 @@ jobs:
           sudo apt-get install -y libfuse2
 
       - name: Build with electron-builder
+        working-directory: electron-app
         env:
-          # Use runner temp for speed; defined at step-level to avoid named-value parsing issues
+          # Speed-ups (step-level avoids named-value errors)
           ELECTRON_CACHE: ${{ runner.temp }}/electron
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
-          # Skip mac identity auto-discovery (you can remove if you plan to sign)
+          # Skip mac identity auto-discovery unless you’re signing
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           echo "Publish mode: $PUBLISH_MODE"
@@ -72,9 +74,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}-dist
-          path: dist/**
+          path: electron-app/dist/**
 
-  # (Optional) A small summary job to show release info when we *did* publish
+  # (Optional) Summary only when publishing on a tag
   summarize:
     needs: build
     runs-on: ubuntu-latest
