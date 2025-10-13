@@ -30,7 +30,7 @@
 
 ### Windows
 
-**Download the latest release:** [v0.1.0](https://github.com/go-robert/focus_app/releases/tag/v0.1.0)
+**Download the latest release:** [v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
 
 **Choose your version:**
 - **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
