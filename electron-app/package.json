@@ -12,7 +12,8 @@
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
-    "build:all": "electron-builder --win --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "electron-builder --win --mac --linux",
     "build:portable": "electron-builder --win portable",
     "dist": "electron-builder --win --x64"
   },
@@ -25,6 +26,11 @@
   "author": {
     "name": "Focus App",
     "email": "focus@example.com"
+  },
+  "homepage": "https://github.com/go-robert/focus",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/go-robert/focus.git"
   },
   "license": "MIT",
   "devDependencies": {
@@ -121,6 +127,33 @@
     },
     "portable": {
       "artifactName": "${productName}-${version}-Portable.${ext}"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/",
+      "category": "Utility",
+      "description": "Non-intrusive Pomodoro Timer",
+      "maintainer": "Focus App <focus@example.com>",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     }
   }
 }

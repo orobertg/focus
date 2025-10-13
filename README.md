@@ -3,7 +3,7 @@
 > A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
 
 [![Version](https://img.shields.io/badge/version-0.1.0-blue)]()
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![Electron](https://img.shields.io/badge/electron-38.2.2-blue)]()
 
@@ -26,11 +26,21 @@
 
 ---
 
+## 🖥️ Platform Support
+
+| Platform | Status | Formats Available |
+|----------|--------|-------------------|
+| 🪟 **Windows** | ✅ **Available** | Installer (NSIS), Portable EXE |
+| 🐧 **Linux** | ✅ **Available** | AppImage, DEB, RPM |
+| 🍎 **macOS** | ⏳ Coming Soon | Build from source |
+
+---
+
 ## 📥 Download & Installation
 
-### Windows
+### 🪟 Windows
 
-**Download the latest release:** [v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
+**✅ Available Now** — [Download v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
 
 **Choose your version:**
 - **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
@@ -43,13 +53,42 @@
   - Perfect for USB drives
   - Settings saved in AppData
 
-### macOS
+### 🐧 Linux
 
-**Coming Soon!** 🍎
+**✅ Available Now** — [Download v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
 
-macOS builds require a Mac to compile. Options:
-- Build locally on your Mac (see [Development](#-development))
-- Wait for automated builds via GitHub Actions (coming soon)
+**Choose your version:**
+
+- **Focus-0.1.0-x86_64.AppImage** (126 MB) — Portable, works on most distros
+  - Make executable: `chmod +x Focus-0.1.0-x86_64.AppImage`
+  - Run directly: `./Focus-0.1.0-x86_64.AppImage`
+  - No installation needed, runs from any location
+  - Compatible with: Ubuntu, Fedora, Debian, Arch, and more
+
+- **Focus-0.1.0-amd64.deb** (85 MB) — Debian/Ubuntu installer
+  - Install: `sudo dpkg -i Focus-0.1.0-amd64.deb`
+  - Or double-click in file manager
+  - For Ubuntu, Debian, Linux Mint, Pop!_OS, etc.
+  - Creates menu entry and shortcuts
+
+- **Focus-0.1.0-x86_64.rpm** (85 MB) — Fedora/RedHat installer
+  - Install: `sudo rpm -i Focus-0.1.0-x86_64.rpm`
+  - Or: `sudo dnf install Focus-0.1.0-x86_64.rpm`
+  - For Fedora, RHEL, CentOS, openSUSE, etc.
+  - Creates menu entry and shortcuts
+
+### 🍎 macOS
+
+**⏳ Not Yet Available**
+
+macOS builds require Mac hardware to compile and sign. We're working on making this available!
+
+**Options to get Focus on macOS:**
+1. **Build it yourself** — [See Development section](#-development) for instructions
+2. **Wait for official builds** — We're setting up automated macOS builds via GitHub Actions
+3. **Help us** — If you have a Mac, you can help test and contribute builds!
+
+**Want to help?** Open an issue or discussion on GitHub if you'd like to contribute macOS builds.
 
 ---
 
@@ -61,6 +100,10 @@ macOS builds require a Mac to compile. Options:
 2. **Timer appears** at the last saved position (or center of screen)
 3. **Toolbar appears** with controls
 4. **System tray icon** shows in taskbar
+
+**Linux users:** 
+- GNOME desktop? You may need to install the AppIndicator extension for the system tray icon
+- Using Wayland? Some features work best on X11 (see [Troubleshooting](#-troubleshooting))
 
 ### Basic Usage
 
@@ -158,8 +201,11 @@ Focus implements the classic Pomodoro Technique:
 
 - **Node.js** 18+ (LTS recommended)
 - **npm** or **yarn**
-- **Windows** for Windows builds
-- **macOS** for macOS builds
+- **Platform-specific:**
+  - **Windows** for Windows builds
+  - **macOS** for macOS builds
+  - **Linux** (or WSL on Windows) for Linux builds
+  - For rpm packages on Ubuntu/Debian: `sudo apt install rpm`
 
 ### Setup
 
@@ -187,11 +233,19 @@ npm run build:win
 # Build macOS installers (requires macOS)
 npm run build:mac
 
-# Build both platforms
+# Build Linux packages (requires Linux or WSL)
+npm run build:linux
+
+# Build all platforms
 npm run build:all
 ```
 
 **Output:** `electron-app/dist/`
+
+**Linux builds on Windows:**
+- Use WSL (Windows Subsystem for Linux)
+- Install Node.js in WSL
+- Run `npm run build:linux` from WSL terminal
 
 ### Project Structure
 
@@ -239,6 +293,48 @@ focus/
 - Click "More info" → "Run anyway"
 - This is safe - code is open source
 
+### Linux
+
+**AppImage won't run**
+- Make it executable: `chmod +x Focus-0.1.0-x86_64.AppImage`
+- Install FUSE if needed: `sudo apt install fuse libfuse2` (Ubuntu/Debian)
+- Or: `sudo dnf install fuse fuse-libs` (Fedora)
+
+**Global hotkeys not working**
+- Hotkeys work best on X11 sessions
+- On Wayland, some hotkeys may be restricted by the compositor
+- Try switching to X11 session (logout → select session at login)
+
+**Click-through mode not working**
+- Click-through has limited support on Wayland
+- Works best on X11 sessions
+- KDE Plasma: Full support
+- GNOME: Partial support
+- Other DEs: May vary
+
+**System tray icon missing**
+- GNOME users: Install `gnome-shell-extension-appindicator`
+  ```bash
+  sudo apt install gnome-shell-extension-appindicator
+  ```
+- Enable the extension in GNOME Extensions app
+- KDE Plasma: Works out of the box
+
+**Settings not saving**
+- Settings are stored in: `~/.config/focus/config.json`
+- Ensure the directory has write permissions
+- If issues persist, delete this file and restart
+
+**deb/rpm package conflicts**
+- If you see dependency errors, try:
+  ```bash
+  # Debian/Ubuntu
+  sudo apt --fix-broken install
+  
+  # Fedora
+  sudo dnf install --allowerasing focus
+  ```
+
 ### macOS
 
 **"App can't be opened" security warning**
@@ -276,12 +372,14 @@ focus/
 **Distribution:**
 - ✅ Windows NSIS installer
 - ✅ Windows portable executable
+- ✅ Linux AppImage (portable)
+- ✅ Linux deb package (Debian/Ubuntu)
+- ✅ Linux rpm package (Fedora/RedHat)
 - ✅ Auto-save settings
 - ✅ Clean uninstaller
 
 **Known Limitations:**
 - macOS builds require Mac hardware
-- Linux builds not yet tested
 
 ---
 
@@ -307,9 +405,11 @@ focus/
 - [ ] Auto-start on system boot
 
 **Distribution**
+- [x] Linux packages (AppImage, deb, rpm) ✅
+- [ ] Linux package repositories (PPA, AUR, Flathub)
 - [ ] macOS code signing
+- [ ] macOS App Store distribution
 - [ ] Microsoft Store distribution
-- [ ] Mac App Store distribution
 - [ ] Auto-update mechanism
 
 ---
@@ -318,11 +418,17 @@ focus/
 
 Contributions are welcome! Here's how you can help:
 
-1. **Report bugs** — Open an issue with reproduction steps
+1. **Report bugs** — Open an issue with reproduction steps (especially on Linux!)
 2. **Suggest features** — Share your ideas in discussions
 3. **Submit PRs** — Fork, create a branch, and submit a pull request
 4. **Improve docs** — Help make documentation clearer
-5. **Test on macOS/Linux** — Share your experience
+5. **Test on Linux** — Try different distros and desktop environments
+6. **Build macOS version** — Help us create and test macOS builds
+
+**Special needs:**
+- Linux testers on various distros (Ubuntu, Fedora, Arch, etc.)
+- Testing on Wayland vs X11
+- macOS developers to help with Mac builds
 
 ---
 
