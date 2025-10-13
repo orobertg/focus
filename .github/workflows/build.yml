@@ -2,144 +2,77 @@ name: Build & Release
 
 on:
   push:
-    branches:
-      - main
-      - develop
-    tags:
-      - 'v*'
+    branches: [main, develop]
+    tags: ['v*']           # Only tagged pushes will publish
   pull_request:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   workflow_dispatch:
+
+permissions:
+  contents: write          # REQUIRED for creating/updating Releases on tag builds
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}
+    name: Build (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
-    
     strategy:
+      fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
         include:
           - os: windows-latest
-            platform: win
-            artifact_name: windows
+            name: Windows
+            eb_target: win
           - os: ubuntu-latest
-            platform: linux
-            artifact_name: linux
+            name: Linux
+            eb_target: linux
           - os: macos-latest
-            platform: mac
-            artifact_name: macos
-    
+            name: macOS
+            eb_target: mac
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}                 # token for electron-builder publish
+      ELECTRON_CACHE: ${{ runner.temp }}/electron
+      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
+      # publish on tags only; otherwise don't publish
+      PUBLISH_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push' && 'always' || 'never' }}
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
-          cache-dependency-path: electron-app/package-lock.json
-      
-      - name: Install dependencies
-        working-directory: electron-app
-        run: npm ci
-      
-      - name: Install Linux dependencies
-        if: matrix.platform == 'linux'
+
+      - run: npm ci
+
+      # (Linux only) Needed for AppImage on Ubuntu 22+/24+
+      - name: Install libfuse2 (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y rpm
-      
-      - name: Build Windows
-        if: matrix.platform == 'win'
-        working-directory: electron-app
-        run: npm run build:win
-      
-      - name: Build Linux
-        if: matrix.platform == 'linux'
-        working-directory: electron-app
-        run: npm run build:linux
-      
-      - name: Build macOS
-        if: matrix.platform == 'mac'
-        working-directory: electron-app
-        run: npm run build:mac
-        env:
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-      
-      - name: List build artifacts (debug)
-        working-directory: electron-app/dist
-        run: |
-          echo "Build artifacts:"
-          ls -lah
-      
-      - name: Upload Windows artifacts
-        if: matrix.platform == 'win'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}-packages
-          path: |
-            electron-app/dist/*.exe
-            electron-app/dist/*.exe.blockmap
-          if-no-files-found: error
-          retention-days: 30
-      
-      - name: Upload Linux artifacts
-        if: matrix.platform == 'linux'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}-packages
-          path: |
-            electron-app/dist/*.AppImage
-            electron-app/dist/*.deb
-            electron-app/dist/*.rpm
-          if-no-files-found: error
-          retention-days: 30
-      
-      - name: Upload macOS artifacts
-        if: matrix.platform == 'mac'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.artifact_name }}-packages
-          path: |
-            electron-app/dist/*.dmg
-            electron-app/dist/*.zip
-          if-no-files-found: error
-          retention-days: 30
+          sudo apt-get install -y libfuse2
 
-  release:
-    name: Create Release
+      # Use electron-builder directly so we control --publish for all targets
+      - name: Build
+        run: |
+          echo "Publish mode: $PUBLISH_MODE"
+          npx electron-builder --${{ matrix.eb_target }} --publish $PUBLISH_MODE
+
+      # Save artifacts when not publishing (PRs, branch pushes)
+      - name: Upload dist artifacts
+        if: env.PUBLISH_MODE == 'never'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}-dist
+          path: dist/**
+
+  # (Optional) A small summary job to show release info when we *did* publish
+  summarize:
     needs: build
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    
+    if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-      
-      - name: Display structure of downloaded files
-        run: ls -R artifacts
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          draft: true
-          generate_release_notes: true
-          files: |
-            artifacts/windows-packages/*
-            artifacts/linux-packages/*
-            artifacts/macos-packages/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      
       - name: Release summary
         run: |
           echo "## Release Created! 🎉" >> $GITHUB_STEP_SUMMARY
@@ -152,4 +85,3 @@ jobs:
           echo "- ✅ macOS (DMG, ZIP)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Check the [Releases](https://github.com/${{ github.repository }}/releases) page!" >> $GITHUB_STEP_SUMMARY
-
