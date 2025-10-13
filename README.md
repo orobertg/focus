@@ -2,7 +2,7 @@
 
 > A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)]()
+[![Version](https://img.shields.io/badge/version-0.1.5-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![Electron](https://img.shields.io/badge/electron-38.2.2-blue)]()
@@ -40,7 +40,7 @@
 
 ### 🪟 Windows
 
-**✅ Available Now** — [Download v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
+**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
 
 **Choose your version:**
 - **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
@@ -55,7 +55,7 @@
 
 ### 🐧 Linux
 
-**✅ Available Now** — [Download v0.1.0](https://github.com/go-robert/focus/releases/tag/v0.1.0)
+**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
 
 **Choose your version:**
 
@@ -307,8 +307,8 @@ focus/
 - Check system tray → Right-click Focus icon → "Show/Hide"
 
 **System tray icon not appearing (Windows)**
-- This has been fixed in v0.1.1
-- If you're on v0.1.0, reinstall or upgrade to latest version
+- This has been fixed in v0.1.5+
+- Upgrade to latest version if you're experiencing this issue
 - App requires system tray to function properly
 
 **How to quit the app**
@@ -529,6 +529,6 @@ If you find Focus useful, please consider:
 
 **Built with focus, for focus.** 🎯
 
-**Version:** 0.1.0  
+**Version:** 0.1.5  
 **Last Updated:** October 13, 2025  
 **Status:** Production Ready
