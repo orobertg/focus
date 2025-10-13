@@ -1,6 +1,6 @@
 {
   "name": "focus",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Focus - Non-intrusive Pomodoro Timer",
   "main": "main.js",
   "productName": "Focus",
