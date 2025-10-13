@@ -30,7 +30,7 @@
 
 ### Windows
 
-**Download the latest release:** [v0.1.0](https://github.com/YOUR_USERNAME/focus_app/releases/tag/v0.1.0)
+**Download the latest release:** [v0.1.0](https://github.com/go-robert/focus_app/releases/tag/v0.1.0)
 
 **Choose your version:**
 - **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
@@ -165,7 +165,7 @@ Focus implements the classic Pomodoro Technique:
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/focus_app.git
+git clone https://github.com/go-robert/focus_app.git
 cd focus_app/electron-app
 
 # Install dependencies
@@ -233,6 +233,11 @@ focus_app/
 **Click-through not working**
 - Press **ALT+SHIFT+C** to toggle
 - Restart the app if issue persists
+
+**Windows SmartScreen warning**
+- App is unsigned (no code signing certificate yet)
+- Click "More info" → "Run anyway"
+- This is safe - code is open source
 
 ### macOS
 
@@ -345,9 +350,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/focus_app/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/YOUR_USERNAME/focus_app/discussions)
-- **Email:** focus@example.com (replace with your email)
+- **Issues:** [GitHub Issues](https://github.com/go-robert/focus_app/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/go-robert/focus_app/discussions)
+- **Website:** [github.com/go-robert/focus_app](https://github.com/go-robert/focus_app)
 
 ---
 
