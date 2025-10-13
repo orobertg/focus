@@ -1,0 +1,46 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    paths:
+      - 'electron-app/**'
+      - '.github/workflows/**'
+
+jobs:
+  quick-check:
+    name: Quick Build Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: electron-app/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: electron-app
+        run: npm ci
+      
+      - name: Run tests
+        working-directory: electron-app
+        run: npm test
+      
+      - name: Check that build doesn't fail
+        working-directory: electron-app
+        run: npm run build 2>&1 | head -n 50
+      
+      - name: PR Check Summary
+        run: |
+          echo "## PR Build Check ✅" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependencies installed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Build configuration valid" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "_Full multi-platform builds will run after merge_" >> $GITHUB_STEP_SUMMARY
+

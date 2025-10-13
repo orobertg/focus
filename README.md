@@ -235,6 +235,17 @@ npm run start:prod
 
 ### Building
 
+#### Automated Builds (Recommended)
+
+**GitHub Actions builds all platforms automatically:**
+- Push to `main` → Builds run automatically
+- Tag a release → Creates release with all packages
+- No local Mac needed for macOS builds!
+
+See [GitHub Actions Setup Guide](docs/GITHUB_ACTIONS_SETUP.md) for details.
+
+#### Manual Builds (Local)
+
 ```bash
 # Build Windows installer + portable
 npm run build:win
@@ -245,7 +256,7 @@ npm run build:mac
 # Build Linux packages (requires Linux or WSL)
 npm run build:linux
 
-# Build all platforms
+# Build all platforms (if on appropriate OS)
 npm run build:all
 ```
 

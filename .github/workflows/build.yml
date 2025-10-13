@@ -1,0 +1,155 @@
+name: Build & Release
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            platform: win
+            artifact_name: windows
+          - os: ubuntu-latest
+            platform: linux
+            artifact_name: linux
+          - os: macos-latest
+            platform: mac
+            artifact_name: macos
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: electron-app/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: electron-app
+        run: npm ci
+      
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm
+      
+      - name: Build Windows
+        if: matrix.platform == 'win'
+        working-directory: electron-app
+        run: npm run build:win
+      
+      - name: Build Linux
+        if: matrix.platform == 'linux'
+        working-directory: electron-app
+        run: npm run build:linux
+      
+      - name: Build macOS
+        if: matrix.platform == 'mac'
+        working-directory: electron-app
+        run: npm run build:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      
+      - name: List build artifacts (debug)
+        working-directory: electron-app/dist
+        run: |
+          echo "Build artifacts:"
+          ls -lah
+      
+      - name: Upload Windows artifacts
+        if: matrix.platform == 'win'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-packages
+          path: |
+            electron-app/dist/*.exe
+            electron-app/dist/*.exe.blockmap
+          if-no-files-found: error
+          retention-days: 30
+      
+      - name: Upload Linux artifacts
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-packages
+          path: |
+            electron-app/dist/*.AppImage
+            electron-app/dist/*.deb
+            electron-app/dist/*.rpm
+          if-no-files-found: error
+          retention-days: 30
+      
+      - name: Upload macOS artifacts
+        if: matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}-packages
+          path: |
+            electron-app/dist/*.dmg
+            electron-app/dist/*.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Display structure of downloaded files
+        run: ls -R artifacts
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            artifacts/windows-packages/*
+            artifacts/linux-packages/*
+            artifacts/macos-packages/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Release summary
+        run: |
+          echo "## Release Created! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Packages Built:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows (Setup + Portable)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Linux (AppImage, deb, rpm)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ macOS (DMG, ZIP)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Check the [Releases](https://github.com/${{ github.repository }}/releases) page!" >> $GITHUB_STEP_SUMMARY
+
