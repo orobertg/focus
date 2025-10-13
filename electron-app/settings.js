@@ -11,6 +11,7 @@ console.log('[Options] Script loaded');
 const form = document.getElementById('settings-form');
 const cancelBtn = document.getElementById('cancel-btn');
 const saveBtn = document.getElementById('save-btn');
+const testSoundBtn = document.getElementById('test-sound-btn');
 
 // Form inputs
 const inputs = {
@@ -42,6 +43,44 @@ ipcRenderer.on('settings-data', (event, settings) => {
     inputs.alwaysOnTop.checked = settings.alwaysOnTop === true; // Default false
   }
 });
+
+/* ============================================
+   Sound Test
+   ============================================ */
+
+function playTestSound() {
+  console.log('[Options] Playing test sound...');
+  
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Use the work-complete sound (pleasant high tone)
+    oscillator.frequency.value = 880; // A5 note
+    oscillator.type = 'sine';
+    
+    const duration = 0.3;
+    const now = audioContext.currentTime;
+    gainNode.gain.setValueAtTime(0.3, now);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+    
+    console.log('[Options] Test sound played (880Hz, 0.3s)');
+  } catch (error) {
+    console.error('[Options] Failed to play test sound:', error);
+    alert('Failed to play test sound. Check console for details.');
+  }
+}
+
+function handleTestSound() {
+  playTestSound();
+}
 
 /* ============================================
    Form Handlers
@@ -103,6 +142,7 @@ function init() {
   // Set up event listeners
   form.addEventListener('submit', handleSave);
   cancelBtn.addEventListener('click', handleCancel);
+  testSoundBtn.addEventListener('click', handleTestSound);
   
   // Request initial settings
   ipcRenderer.send('settings-get');

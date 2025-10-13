@@ -657,3 +657,31 @@ body.debug-mode::before {
   /* Vertical orientation - no rotation needed */
 }
 
+/* ============================================
+   Test Sound Button
+   ============================================ */
+
+.test-sound-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.test-sound-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 1);
+  transform: translateY(-1px);
+}
+
+.test-sound-btn:active {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(0);
+}
+

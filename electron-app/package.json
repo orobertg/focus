@@ -5,9 +5,16 @@
   "main": "main.js",
   "productName": "Focus",
   "scripts": {
-    "start": "electron .",
+    "start": "electron . --dev",
+    "start:prod": "electron .",
     "check": "node check-process.js",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "echo \"No tests yet\" && exit 0",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:all": "electron-builder --win --mac",
+    "build:portable": "electron-builder --win portable",
+    "dist": "electron-builder --win --x64"
   },
   "keywords": [
     "pomodoro",
@@ -15,14 +22,105 @@
     "productivity",
     "focus"
   ],
-  "author": "",
+  "author": {
+    "name": "Focus App",
+    "email": "focus@example.com"
+  },
   "license": "MIT",
   "devDependencies": {
-    "electron": "^38.2.2"
+    "electron": "^38.2.2",
+    "electron-builder": "^26.0.12"
   },
   "dependencies": {
     "electron-localshortcut": "^3.2.1",
     "electron-store": "^8.2.0",
     "sharp": "^0.34.4"
+  },
+  "build": {
+    "appId": "com.focus.timer",
+    "productName": "Focus",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "**/*",
+      "!dist",
+      "!docs",
+      "!native/target",
+      "!*.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon-256.png",
+      "artifactName": "${productName}-${version}-Setup.${ext}"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon-512.png",
+      "category": "public.app-category.productivity",
+      "artifactName": "${productName}-${version}-${arch}.${ext}",
+      "identity": null
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "icon": "assets/icons/icon-512.png",
+      "backgroundColor": "#202020",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 144,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 396,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Focus"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-Portable.${ext}"
+    }
   }
 }

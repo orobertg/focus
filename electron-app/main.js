@@ -13,18 +13,25 @@ const store = new Store();
    Single Instance Lock
    ============================================ */
 
+// Set a consistent app ID across all versions (dev, portable, installed)
+// This ensures only ONE instance can run regardless of how it's launched
+app.setAppUserModelId('com.focus.timer');
+
 const gotTheLock = app.requestSingleInstanceLock();
 
 if (!gotTheLock) {
   console.log('[Electron] Another instance is already running. Exiting...');
+  console.log('[Electron] App ID: com.focus.timer');
+  console.log('[Electron] This process will now exit.');
   
   // Show warning dialog before quitting
   dialog.showErrorBox(
     'Focus App Already Running',
-    'Focus app is already running.\n\nPlease check your system tray or taskbar.'
+    'Focus app is already running.\n\nOnly one instance of Focus can run at a time.\n\nPlease check your system tray or taskbar.'
   );
   
-  app.quit();
+  // Force immediate exit
+  process.exit(0);
 } else {
   // Handle second-instance attempt - focus the existing window
   app.on('second-instance', (event, commandLine, workingDirectory) => {
@@ -107,8 +114,13 @@ function createWindow() {
 
   mainWindow.loadFile('index.html');
 
-  // Open DevTools automatically (for development)
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // Open DevTools automatically (for development only)
+  // Set NODE_ENV=development or pass --dev flag to enable
+  const isDev = process.env.NODE_ENV === 'development' || process.argv.includes('--dev');
+  if (isDev) {
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    console.log('[Electron] DevTools opened (development mode)');
+  }
 
   // DON'T enable click-through by default - let user toggle with ALT+SHIFT+C
   // This allows the app to be fully interactive on startup

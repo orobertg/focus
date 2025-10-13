@@ -1,430 +1,368 @@
-# Focus App 🎯
+# Focus 🎯
 
-> A lightweight, non-intrusive Pomodoro timer with click-through floating UI — built with Electron, React, and Rust for distraction-free focus work.
+> A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
 
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
-[![License](https://img.shields.io/badge/license-MIT-blue)]()
-[![Status](https://img.shields.io/badge/status-Electron%20Ready-success)]()
-[![Click-Through](https://img.shields.io/badge/click--through-Working!-brightgreen)]()
-
----
-
-## ✅ Electron App - Phase 2 Complete (100%)!
-
-**The migration from Flutter to Electron is SUCCESSFUL and the app is fully functional!**
-
-**Current Status:** Phase 1 (Foundation) ✅ Complete | Phase 2 (Core Features) ✅ Complete!
-
-**What Works NOW:**
-- ✅ **Click-through functionality** - Perfect stability, no crashes
-- ✅ **Beautiful timer UI** - 280×340 rounded square with progress ring
-- ✅ **Full Pomodoro Technique** - Complete implementation with visual progress
-- ✅ **Pause-Break System** - 4-phase gentle break encouragement with visual progression
-- ✅ **Auto-start controls** - Independently control break and pomodoro auto-start
-- ✅ **Progress dots** - Gray (not started) → Yellow (break) → Green (complete)
-- ✅ **Timer controls** - Start, pause, reset all functional
-- ✅ **Independent toolbar** - Separate draggable window with IPC communication
-- ✅ **Reflection periods** - Blue star celebration after 4 full cycles
-- ✅ **Settings panel** - Inline 3-tab interface (Duration/Options/Notifications)
-- ✅ **Keyboard navigation** - Complete keyboard-driven operation
-- ✅ **Global hotkeys** - ALT+SHIFT+P/C/O for visibility, click-through, options
-- ✅ **System tray** - Background operation
-- ✅ **Position persistence** - Windows remember their locations
-
-📖 **Current Status:** [docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)  
-📋 **Full Roadmap:** [docs/MVP_Milestone_Plan.md](docs/MVP_Milestone_Plan.md)  
-📝 **Specifications:** [docs/Specifications.md](docs/Specifications.md)  
-🎯 **Next Sprint:** [docs/milestones/MILESTONE_POLISH.md](docs/milestones/MILESTONE_POLISH.md)
-
-**Quick Start:**
-```bash
-cd electron-app
-npm install
-npm start
-```
-
-**Test Click-Through:**
-```bash
-# Press ALT+SHIFT+C to toggle click-through mode
-# When enabled, you can click through timer to apps behind it
-```
+[![Version](https://img.shields.io/badge/version-0.1.0-blue)]()
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-lightgrey)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
+[![Electron](https://img.shields.io/badge/electron-38.2.2-blue)]()
 
 ---
 
-## ✨ Features
+## ✨ What Makes Focus Special?
 
-### Electron Implementation (Current) ✅
-- ✅ **Click-Through Window** — Perfect stability with `setIgnoreMouseEvents()`
-- ✅ **Floating Timer Bubble** — Always-on-top, draggable circular timer (280px)
-- ✅ **Precision Timing** — Rust-powered Pomodoro engine (stub implementation)
-- ✅ **Beautiful UI** — Circular progress ring, phase icons, animated dots
-- ✅ **Timer Controls** — Start, Pause, Reset functionality
-- ✅ **Pause-Break System** — 4-phase visual progression (pause → warm-up → blinking → cool-down)
-- ✅ **Global Hotkeys** — ALT+SHIFT+P (toggle), C (click-through), O (options)
-- ✅ **Position Memory** — Persists across sessions with electron-store
-- ✅ **System Tray** — Background running, tray menu
-- ✅ **Full Pomodoro Technique** — Progress tracking, break transitions, reflection periods
-- ✅ **Keyboard Navigation** — Complete keyboard-driven operation with visual focus indicators
+**Focus** is a Pomodoro timer that stays visible but never gets in your way. The unique **click-through** feature lets you interact with apps behind the timer while keeping track of your productivity.
 
----
+### Key Features
 
-## 🍅 Pomodoro Technique Implementation
-
-Focus App implements the complete **Pomodoro Technique** with visual feedback and gentle transitions to help you maintain deep focus without distraction.
-
-### How It Works
-
-#### **1. Focus Sessions** 🎯
-- Work in **25-minute focused intervals** (configurable)
-- Open eye icon 👁️ shows you're actively focusing
-- Progress ring fills as time elapses
-- **Auto-start Pomodoros** setting controls if next session starts automatically after break
-
-#### **2. Break Transition** ☕
-When a pomodoro completes:
-- The dot for that session turns **yellow** (break in progress)
-- Coffee mug icon appears
-- **Auto-start Breaks** setting controls behavior:
-  - **Enabled**: Break timer starts automatically
-  - **Disabled**: Break screen appears, press START to begin
-- Take your well-deserved rest!
-
-#### **3. Completing the Cycle** ✅
-When break finishes:
-- The yellow dot turns **green** (full cycle complete!)
-- Progress ring shows next pomodoro countdown
-- **Auto-start Pomodoros** setting controls behavior:
-  - **Enabled**: Next pomodoro starts automatically
-  - **Disabled**: Focus screen appears, press START to begin
-
-#### **4. Visual Progress** 📊
-- **Gray dot** ○ = Cycle not started yet
-- **Yellow dot** 🟡 = Break in progress for this cycle
-- **Green dot** 🟢 = Fully completed (pomodoro + break done)
-
-#### **5. Pause-Break System** ⏸️☕
-A sophisticated system that gently encourages breaks during extended pauses:
-
-**Phase 1: Normal Pause (0-60s)**
-- Click PAUSE during focus session
-- Timer display shows remaining time (frozen)
-- Button shows START
-- No visual changes
-
-**Phase 2: Warm-Up (60s-120s)**
-- After **1 minute** of pause, automatic break mode initiates
-- Coffee mug icon ☕ appears
-- Yellow dots appear **left-to-right** every 15 seconds:
-  - 1:15 → First yellow dot
-  - 1:30 → Second yellow dot
-  - 1:45 → Third yellow dot
-  - 2:00 → Fourth yellow dot
-- Timer continues to show remaining focus time
-
-**Phase 3: Blinking (120s+)**
-- After **2 minutes** of pause, all 4 yellow dots blink
-- Encourages you to click START and resume
-- Blinking continues indefinitely until you resume
-- Timer still shows remaining focus time
-
-**Phase 4: Cool-Down (60s while running)**
-- When you click START after pause-break:
-  - Focus timer **immediately resumes** counting down
-  - Yellow dots clear **right-to-left** every 15 seconds simultaneously
-  - 0-15s: 4th dot clears
-  - 15-30s: 3rd dot clears
-  - 30-45s: 2nd dot clears
-  - 45-60s: 1st dot clears (all normal)
-- **Green dots preserved** — Completed pomodoros stay green throughout
-- This creates a smooth visual transition back to focus mode
-
-**Why This Works:**
-- Encourages healthy breaks during long pauses
-- Visual progression makes break duration tangible
-- Gentle nudging without forced interruptions
-- Preserves progress tracking (green dots untouched)
-- Respects your autonomy (you choose when to resume)
-
-#### **6. Reflection Period** ⭐
-After completing **4 full cycles** (pomodoro + break):
-- Blue star icon ⭐ appears (celebration!)
-- All 4 dots show **solid green**
-- Label shows "REFLECT"
-- **10-minute minimum** enforced before starting new cycle
-- Time to appreciate your productive work!
-
-### Visual Progress Tracking
-
-```
-Full Cycle Flow:
-○ ○ ○ ○  →  Start (all gray)
-🟡○ ○ ○  →  Pomodoro 1 complete, break in progress (yellow)
-🟢○ ○ ○  →  Break 1 complete, full cycle done (green)
-🟢🟡○ ○  →  Pomodoro 2 complete, break in progress
-🟢🟢○ ○  →  Break 2 complete, 2 full cycles done
-🟢🟢🟡○  →  Pomodoro 3 complete, break in progress
-🟢🟢🟢○  →  Break 3 complete, 3 full cycles done
-🟢🟢🟢🟡  →  Pomodoro 4 complete, break in progress
-🟢🟢🟢🟢  →  Break 4 complete → ⭐ REFLECT (10 min minimum)
-```
-
-### Detailed Example (2nd Cycle)
-
-```
-State                   Dots        Phase       Auto-Behavior
-─────────────────────   ─────────   ─────────   ──────────────────────────
-1 cycle complete        🟢○○○       FOCUS       Ready to start Pomodoro 2
-Pomodoro 2 running      🟢○○○       FOCUS       Timer counting down
-Pomodoro 2 finishes     🟢🟡○○       BREAK       Auto-starts if enabled*
-Break 2 running         🟢🟡○○       BREAK       Taking rest
-Break 2 finishes        🟢🟢○○       FOCUS       Auto-starts if enabled**
-Ready for Pomodoro 3    🟢🟢○○       FOCUS       Press START
-
-* Auto-start Breaks setting in OPTIONS
-** Auto-start Pomodoros setting in OPTIONS
-```
-
-### Why This Works
-
-1. **Visual Progress** — Three states (gray/yellow/green) show clear status
-2. **Flexible Auto-Start** — Control break and pomodoro auto-start independently
-3. **Clear Feedback** — Yellow during break, green when fully complete
-4. **Celebration** — Blue star rewards completing 4 full cycles
-5. **Mandatory Rest** — 10-minute reflection prevents burnout
-6. **Keyboard-Driven** — Full navigation with arrow keys, space, tab, and escape
-
-### Configurable Settings
-
-**DURATION Tab:**
-- **Focus duration** (default: 25 min, range: 1-120 min)
-- **Short break** (default: 5 min, range: 1-30 min)
-- **Long break** (default: 15 min, range: 5-60 min)
-- **Pomodoros per cycle** (default: 4, range: 1-10)
-
-**OPTIONS Tab:**
-- **Sound** (notification sounds)
-- **Auto-start Breaks** (start break automatically after pomodoro)
-- **Auto-start Pomodoros** (start next pomodoro automatically after break)
-- **Always on Top** (keep timer window on top)
-
-**NOTIFICATIONS Tab:**
-- **Desktop Notifications** (system notifications for phase changes)
-
-**Keyboard Shortcuts:**
-- `ALT+SHIFT+O` — Open Options
-- `ALT+SHIFT+P` — Toggle window visibility
-- `ESC` — Save settings and return to timer
-- `TAB` / `SHIFT+TAB` — Cycle through settings tabs
-- `↑` / `↓` — Navigate settings options
-- `←` / `→` — Adjust durations or navigate timer buttons
-- `SPACE` — Activate button or toggle setting
-
-📖 **Full Specification:** [docs/Pomodoro_Progress_Dots_Specification.md](docs/Pomodoro_Progress_Dots_Specification.md)
-
-### Flutter Implementation (Archived) 🗃️
-- ✅ **All UI components** — Reference for design
-- ✅ **Notes Capture** — Quick note-taking with screenshot
-- ✅ **SQLite Persistence** — Local database for sessions
-- ✅ **Click-Through** — Successfully implemented using Electron framework, dropping Flutter.
-
-### Next Steps (Phase 2) 📋
-- Calendar & Task Management with drag-drop scheduling
-- Stats, streaks, and productivity insights
-- E2EE sync server for multi-device support
-- AI-powered summaries (Ollama local, OpenAI/Anthropic cloud)
+- 🪟 **Click-Through Mode** — Click through the timer to apps behind it
+- ⏱️ **Pomodoro Technique** — 25-min focus sessions with automatic breaks
+- 🎨 **Beautiful UI** — Minimal, elegant timer with progress visualization
+- 🔔 **Smart Notifications** — Sound alerts + desktop notifications
+- ⌨️ **Global Hotkeys** — Control from anywhere (ALT+SHIFT+P/C/O)
+- 💾 **Auto-Save Settings** — Remembers position, duration, preferences
+- 🎯 **Timer Presets** — Quick 25/5 or 50/10 timers
+- ⚙️ **Fully Customizable** — Adjust work/break durations, sounds, behavior
 
 ---
 
-## 🎯 Design Philosophy
+## 📥 Download & Installation
 
-**Non-intrusive with Click-Through** — MUST allow users to work uninterrupted (bubbles "fade to background")  
-**Local-first** — Your data lives on your machine; optional sync later  
-**Precision-focused** — Rust core ensures accurate timing, even through sleep/wake  
-**Keyboard-driven** — Full hotkey support for power users  
-**Beautiful & Minimal** — Clean design inspired by modern productivity tools
+### Windows
 
----
+**Download the latest release:** [v0.1.0](https://github.com/YOUR_USERNAME/focus_app/releases/tag/v0.1.0)
 
-## 🏗️ Architecture (Electron Migration)
+**Choose your version:**
+- **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
+  - Double-click to install
+  - Creates desktop and Start Menu shortcuts
+  - Includes clean uninstaller
+  
+- **Focus-0.1.0-Portable.exe** (91 MB) — No installation required
+  - Run directly from any folder
+  - Perfect for USB drives
+  - Settings saved in AppData
 
-```
-┌─────────────────────────────────────────┐
-│    Electron + React + TypeScript        │
-│  • Draggable bubbles with click-through │
-│  • Notes widget, screenshot capture     │
-│  • System tray, global hotkeys          │
-└──────────────┬──────────────────────────┘
-               │ neon-bindings or IPC
-┌──────────────┴──────────────────────────┐
-│         Rust Core (Unchanged)           │
-│  • Pomodoro engine (state machine)      │
-│  • Monotonic timing + drift correction  │
-│  • SQLite persistence                   │
-└─────────────────────────────────────────┘
-```
+### macOS
 
-**Stack:**
-- **Frontend:** Electron 28+, React 18, TypeScript
-- **Core:** Rust 1.70+ (existing `core/` crate)
-- **Database:** SQLite (better-sqlite3 + rusqlite)
-- **Build:** Vite + electron-builder
-- **Package:** MSIX (Windows Store) + portable EXE
+**Coming Soon!** 🍎
+
+macOS builds require a Mac to compile. Options:
+- Build locally on your Mac (see [Development](#-development))
+- Wait for automated builds via GitHub Actions (coming soon)
 
 ---
 
-## 🚀 Quick Start (Coming Soon)
+## 🚀 Quick Start
+
+### First Launch
+
+1. **Install/Run Focus** using one of the installers above
+2. **Timer appears** at the last saved position (or center of screen)
+3. **Toolbar appears** with controls
+4. **System tray icon** shows in taskbar
+
+### Basic Usage
+
+1. **Start timer:** Click ▶ play button or press ALT+SHIFT+P
+2. **Pause timer:** Click ⏸ pause button
+3. **Reset timer:** Click ■ stop button
+4. **Extend session:** Click "+5" to add 5 minutes
+5. **Quick preset:** Click "25/5" or "50/10" for instant setup
+
+### Settings
+
+**Open settings:** Click ⚙ gear icon or press **ALT+SHIFT+O**
+
+**Three tabs:**
+- **DURATION** — Adjust work/break times with sliders
+- **OPTIONS** — Auto-start breaks/pomodoros, always-on-top
+- **NOTIFICATIONS** — Enable/disable sounds and desktop alerts
+
+### Global Hotkeys
+
+- **ALT+SHIFT+P** — Show/hide windows
+- **ALT+SHIFT+C** — Toggle click-through mode
+- **ALT+SHIFT+O** — Open settings
+
+### Click-Through Mode
+
+**What is it?**  
+Click-through mode makes the timer "transparent" to mouse clicks, letting you interact with windows behind it.
+
+**How to use:**
+1. Press **ALT+SHIFT+C** to enable
+2. Timer stays visible but you can click through it
+3. Press **ALT+SHIFT+C** again to disable
+
+**Perfect for:**
+- Keeping timer visible while coding
+- Monitoring time during video calls
+- Staying focused during research/reading
+
+---
+
+## 🎯 How It Works
+
+### The Pomodoro Technique
+
+Focus implements the classic Pomodoro Technique:
+
+1. **Work Session** (25 min default) — Focus on a single task
+2. **Short Break** (5 min) — Relax, stretch, hydrate
+3. **Repeat 4 times** — Build momentum with breaks
+4. **Long Break** (15 min) — Longer rest after 4 cycles
+5. **Reflection** — Review your accomplishments
+
+### Visual Progress
+
+- **Progress Ring** — Circular timer shows remaining time
+- **Progress Dots** — Track completed Pomodoros (4 dots)
+  - Gray = Not started
+  - Yellow = Break in progress
+  - Green = Completed
+- **Phase Icons** — Eye (focus) or Coffee (break)
+- **Celebration** — Blue star when all 4 cycles complete
+
+---
+
+## ⚙️ Settings & Customization
+
+### Timer Durations
+- **Work Session:** 1-120 minutes (default: 25)
+- **Short Break:** 1-30 minutes (default: 5)
+- **Long Break:** 5-60 minutes (default: 15)
+- **Cycle Length:** 1-10 Pomodoros (default: 4)
+
+### Behavior Options
+- **Auto-start Breaks** — Automatically start break timer after work
+- **Auto-start Pomodoros** — Automatically start next work session after break
+- **Always on Top** — Keep timer above all windows (default: off)
+
+### Notifications
+- **Sound Notifications** — Pleasant audio tones for phase transitions
+  - Test sound button included
+  - Work complete: 880 Hz (A5 note)
+  - Break complete: 659 Hz (E5 note)
+  - Long break: Two-tone sequence
+- **Desktop Notifications** — Windows toast notifications
+  - "Focus Session Complete! Time for a break."
+  - "Break Complete! Ready to get back to work?"
+  - "All 4 Pomodoros Complete! Time to reflect!"
+
+---
+
+## 🛠️ Development
 
 ### Prerequisites
 
-```bash
-# Node.js
-node --version     # 18.x or later
+- **Node.js** 18+ (LTS recommended)
+- **npm** or **yarn**
+- **Windows** for Windows builds
+- **macOS** for macOS builds
 
-# Rust (for core engine)
-cargo --version    # 1.70 or later
-```
-
-### Run the App
-
-**Note:** Electron implementation in progress. Check back soon!
+### Setup
 
 ```bash
-cd electron-app
+# Clone the repository
+git clone https://github.com/YOUR_USERNAME/focus_app.git
+cd focus_app/electron-app
+
+# Install dependencies
 npm install
-npm run dev
+
+# Run in development mode (with DevTools)
+npm start
+
+# Run in production mode (no DevTools)
+npm run start:prod
+```
+
+### Building
+
+```bash
+# Build Windows installer + portable
+npm run build:win
+
+# Build macOS installers (requires macOS)
+npm run build:mac
+
+# Build both platforms
+npm run build:all
+```
+
+**Output:** `electron-app/dist/`
+
+### Project Structure
+
+```
+focus_app/
+├── electron-app/           # Main application
+│   ├── main.js            # Electron main process
+│   ├── renderer.js        # Timer logic & UI
+│   ├── toolbar.js         # Toolbar window
+│   ├── index.html         # Timer window
+│   ├── toolbar.html       # Toolbar window
+│   ├── styles.css         # Styling
+│   ├── core_stub.js       # Timer engine (JS)
+│   ├── assets/            # Icons and resources
+│   └── package.json       # Dependencies & build config
+├── docs/                  # Documentation
+└── README.md             # This file
 ```
 
 ---
 
-## 📚 Documentation
+## 🐛 Troubleshooting
 
-### Core Documents
-- **[docs/CURRENT_STATUS.md](docs/CURRENT_STATUS.md)** — What's working now and next steps
-- **[docs/Specifications.md](docs/Specifications.md)** — Product requirements and technical spec
-- **[docs/MVP_Milestone_Plan.md](docs/MVP_Milestone_Plan.md)** — Full development roadmap
+### Windows
 
-### Milestone Sprints
-- **[docs/milestones/MILESTONE_POLISH.md](docs/milestones/MILESTONE_POLISH.md)** — Current sprint (Quick Polish)
-- **[docs/milestones/MILESTONE_DATABASE.md](docs/milestones/MILESTONE_DATABASE.md)** — Future: Database integration
-- **[docs/milestones/MILESTONE_RUST_CORE.md](docs/milestones/MILESTONE_RUST_CORE.md)** — Future: Native Rust module
+**Timer not visible**
+- Press **ALT+SHIFT+P** to toggle visibility
+- Check system tray → Right-click Focus icon → "Show/Hide"
 
-### Migration History
-- **[docs/ELECTRON_MIGRATION.md](docs/ELECTRON_MIGRATION.md)** — Why we migrated from Flutter
-- **[docs/ELECTRON_SUCCESS_SUMMARY.md](docs/ELECTRON_SUCCESS_SUMMARY.md)** — Migration results
-- **[docs/MIGRATION_SUMMARY.md](docs/MIGRATION_SUMMARY.md)** — Executive summary
+**Multiple instances running**
+- Only one Focus instance can run at a time
+- Close all instances: Task Manager → End "Focus.exe" processes
+- Restart the app
+
+**Settings not saving**
+- Settings are stored in: `%APPDATA%\focus\config.json`
+- If issues persist, delete this file and restart
+
+**Click-through not working**
+- Press **ALT+SHIFT+C** to toggle
+- Restart the app if issue persists
+
+### macOS
+
+**"App can't be opened" security warning**
+1. Right-click on Focus.app
+2. Select "Open"
+3. Click "Open" in the security dialog
+4. Only needed once, future launches work normally
 
 ---
 
-## 🛣️ Roadmap
+## 📝 Changelog
 
-### Phase 1: Foundation ✅ COMPLETE
-- [x] Electron project structure
-- [x] **Click-through validated** with `setIgnoreMouseEvents()`
-- [x] Timer bubble UI (pure HTML/CSS/JS)
-- [x] Basic timer controls
-- [x] Global hotkeys
-- [x] System tray integration
-- [x] Position persistence
+### v0.1.0 (October 13, 2025) - Initial Release
 
-### Phase 2: Core Features ✅ COMPLETE!
-- [x] Progress ring animation
-- [x] Phase icons and state visualization (eye, coffee, star)
-- [x] **Full Pomodoro implementation** with visual progress tracking
-- [x] **Progress dots** (gray → yellow → green progression)
-- [x] **Auto-start controls** (breaks and pomodoros configurable)
-- [x] **Reflection period** with blue star after 4 full cycles
-- [x] Independent toolbar window
-- [x] IPC communication
-- [x] **Settings panel** (inline 3-tab: Duration/Options/Notifications)
-- [x] **Keyboard navigation** (complete keyboard-driven operation)
-- [x] **Visual focus indicators** (glowing outlines for keyboard nav)
-- [x] Timer presets (25/5, 50/10)
-- [x] Settings persistence (localStorage + IPC)
-- [ ] **NEXT:** App icon and packaging
+**Core Features:**
+- ✅ Full Pomodoro timer implementation
+- ✅ Click-through window functionality
+- ✅ Beautiful timer UI with progress visualization
+- ✅ Independent draggable toolbar
+- ✅ Settings panel with 3 tabs
+- ✅ Timer presets (25/5, 50/10)
+- ✅ Extend +5 button
 
-### Phase 3: Polish & Features ⏳ Upcoming
-- [ ] SQLite database (sessions, notes, settings)
-- [ ] Notes capture with screenshots
-- [ ] Session recovery
+**Notifications:**
+- ✅ Sound notifications (Web Audio API)
+- ✅ Desktop notifications (Windows toasts)
+- ✅ Test sound button in settings
+
+**System Integration:**
+- ✅ Global hotkeys (ALT+SHIFT+P/C/O)
+- ✅ System tray icon
+- ✅ Position persistence
+- ✅ Single instance enforcement
+
+**Distribution:**
+- ✅ Windows NSIS installer
+- ✅ Windows portable executable
+- ✅ Auto-save settings
+- ✅ Clean uninstaller
+
+**Known Limitations:**
+- macOS builds require Mac hardware
+- Linux builds not yet tested
+
+---
+
+## 🗺️ Roadmap
+
+### Future Features (Not in v0.1.0)
+
+**Database & History**
+- [ ] SQLite session tracking
 - [ ] Statistics dashboard
-- [ ] Native Rust core integration
+- [ ] Focus time analytics
+- [ ] Session recovery after restart
 
-### Phase 4: Advanced Features 📋 Future
-- [ ] Calendar/Timeline view
-- [ ] Task management
-- [ ] AI integration (Ollama)
-- [ ] E2EE sync server
-- [ ] Multi-device support
+**Native Performance**
+- [ ] Rust core integration (neon-bindings)
+- [ ] Monotonic clock for accuracy
+- [ ] Reduced CPU usage
 
----
+**Advanced Features**
+- [ ] Notes capture with screenshots
+- [ ] Multiple timer profiles
+- [ ] Custom themes (dark/light)
+- [ ] Auto-start on system boot
 
-## 📖 Feature Status
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Click-through | ✅ | Perfect stability |
-| Timer Bubble | ✅ | 280×340 rounded square |
-| Progress Ring | ✅ | SVG animation |
-| Phase Icons | ✅ | Eye, coffee, star ⭐ |
-| **Pomodoro Progress** | ✅ | **3-state dots (gray/yellow/green)** |
-| **Auto-start Breaks** | ✅ | **Configurable break auto-start** |
-| **Auto-start Pomodoros** | ✅ | **Configurable pomodoro auto-start** |
-| **Reflection Period** | ✅ | **Blue star after 4 full cycles** |
-| **Keyboard Navigation** | ✅ | **Complete keyboard-driven UI** |
-| **Visual Focus Indicators** | ✅ | **Glowing outlines for navigation** |
-| Toolbar | ✅ | Independent window |
-| Global Hotkeys | ✅ | ALT+SHIFT+P/C/S/N |
-| System Tray | ✅ | Background operation |
-| Position Persist | ✅ | electron-store |
-| Settings Panel | ✅ | Swipeable panel |
-| Timer Presets | ✅ | 25/5, 50/10 |
-| App Icon | 🚧 | Next sprint |
-| Notes Panel | ⏳ | Future |
-| Screenshot | ⏳ | Future |
-| SQLite DB | ⏳ | Future |
-| Rust Core (Native) | ⏳ | Future (stub working) |
-
----
-
-## 🧪 Development
-
-### Flutter Implementation (Archived)
-Located in `app/` directory. Preserved for UI reference.
-
-### Electron Implementation (Active)
-Will be in `electron-app/` directory (coming soon).
-
-### Rust Core
-Located in `core/` directory. **No changes needed** for Electron migration.
+**Distribution**
+- [ ] macOS code signing
+- [ ] Microsoft Store distribution
+- [ ] Mac App Store distribution
+- [ ] Auto-update mechanism
 
 ---
 
 ## 🤝 Contributing
 
-This is currently a solo project in active development. Once the Electron MVP is complete, contribution guidelines will be added.
+Contributions are welcome! Here's how you can help:
+
+1. **Report bugs** — Open an issue with reproduction steps
+2. **Suggest features** — Share your ideas in discussions
+3. **Submit PRs** — Fork, create a branch, and submit a pull request
+4. **Improve docs** — Help make documentation clearer
+5. **Test on macOS/Linux** — Share your experience
 
 ---
 
 ## 📄 License
 
-MIT License — See [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
 ## 🙏 Acknowledgments
 
-- Rust Pomodoro core inspired by precision timing requirements
-- UI design inspired by [Dribbble](https://dribbble.com/)
-- Flutter implementation provided invaluable prototyping and UX insights
-- Electron provides the stable click-through foundation we need
+### Technologies Used
+- **Electron** — Cross-platform desktop framework
+- **electron-builder** — Distribution packaging
+- **electron-store** — Settings persistence
+- **Web Audio API** — Sound notifications
+- **HTML5 Notifications** — Desktop alerts
+
+### Inspiration
+- **Pomodoro Technique** by Francesco Cirillo
+- **Flow Timer** and similar minimal timer apps
+- Community feedback and feature requests
 
 ---
 
-## 💬 Contact
+## 📞 Support
 
-For questions or collaboration: [Open an issue](../../issues)
+- **Issues:** [GitHub Issues](https://github.com/YOUR_USERNAME/focus_app/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/YOUR_USERNAME/focus_app/discussions)
+- **Email:** focus@example.com (replace with your email)
 
 ---
 
-*Last Updated: October 12, 2025*  
-*Current Focus: Phase 2 Complete - Auto-Start & Progress Tracking Implemented!*
+## ⭐ Star This Project
+
+If you find Focus useful, please consider:
+- ⭐ Starring the repository
+- 📢 Sharing with friends and colleagues
+- 💬 Leaving feedback in discussions
+- 🐛 Reporting bugs to help improve the app
+
+---
+
+**Built with focus, for focus.** 🎯
+
+**Version:** 0.1.0  
+**Last Updated:** October 13, 2025  
+**Status:** Production Ready

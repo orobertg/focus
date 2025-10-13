@@ -101,6 +101,7 @@ const elements = {
   cycleLengthPrev: document.getElementById('cycle-length-prev'),
   cycleLengthNext: document.getElementById('cycle-length-next'),
   soundEnabledInput: document.getElementById('sound-enabled'),
+  testSoundBtn: document.getElementById('test-sound-btn'),
   autoStartBreaksInput: document.getElementById('auto-start-breaks'),
   autoStartPomodorosInput: document.getElementById('auto-start-pomodoros'),
   showNotificationsInput: document.getElementById('show-notifications'),
@@ -206,6 +207,14 @@ function init() {
   elements.tabDuration.addEventListener('click', () => switchTab('duration'));
   elements.tabOptions.addEventListener('click', () => switchTab('options'));
   elements.tabNotifications.addEventListener('click', () => switchTab('notifications'));
+  
+  // Set up test sound button
+  if (elements.testSoundBtn) {
+    elements.testSoundBtn.addEventListener('click', () => {
+      console.log('[Sound] Test button clicked');
+      playNotificationSound('work-complete');
+    });
+  }
   
   // Set up slider listeners for real-time updates
   setupSliderListeners();
@@ -664,6 +673,148 @@ function tick() {
   updateUI();
 }
 
+/* ============================================
+   Desktop Notifications
+   ============================================ */
+
+function showDesktopNotification(title, body, type = 'default') {
+  // Check if desktop notifications are enabled in settings
+  if (!state.config.showNotifications) {
+    console.log('[Notification] Desktop notifications disabled in settings');
+    return;
+  }
+  
+  // Check if notifications are supported
+  if (!('Notification' in window)) {
+    console.log('[Notification] Browser does not support notifications');
+    return;
+  }
+  
+  // Request permission if needed
+  if (Notification.permission === 'default') {
+    Notification.requestPermission().then(permission => {
+      if (permission === 'granted') {
+        sendNotification(title, body, type);
+      }
+    });
+  } else if (Notification.permission === 'granted') {
+    sendNotification(title, body, type);
+  }
+}
+
+function sendNotification(title, body, type) {
+  try {
+    const notification = new Notification(title, {
+      body: body,
+      icon: 'assets/icons/icon-256.png', // App icon for notification
+      tag: 'focus-timer', // Replace previous notification with same tag
+      requireInteraction: false, // Auto-dismiss after a few seconds
+      silent: false, // Allow system sound (in addition to our custom sound)
+    });
+    
+    // Auto-close after 5 seconds
+    setTimeout(() => {
+      notification.close();
+    }, 5000);
+    
+    console.log(`[Notification] Shown: ${title} - ${body}`);
+  } catch (error) {
+    console.error('[Notification] Failed to show notification:', error);
+  }
+}
+
+/* ============================================
+   Sound Notifications
+   ============================================ */
+
+function playNotificationSound(type = 'default') {
+  // Check if sound is enabled in settings
+  if (!state.config.soundEnabled) {
+    console.log('[Sound] Notifications disabled in settings');
+    return;
+  }
+  
+  try {
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    // Configure sound based on event type
+    let frequency = 800;
+    let duration = 0.2; // seconds
+    let waveType = 'sine';
+    
+    switch (type) {
+      case 'work-complete':
+        // Higher pitch, pleasant tone for work session complete
+        frequency = 880; // A5 note
+        duration = 0.3;
+        waveType = 'sine';
+        break;
+        
+      case 'break-complete':
+        // Lower pitch, gentle tone for break complete
+        frequency = 659; // E5 note
+        duration = 0.25;
+        waveType = 'sine';
+        break;
+        
+      case 'long-break-complete':
+        // Two-tone sequence for long break
+        frequency = 698; // F5 note
+        duration = 0.4;
+        waveType = 'sine';
+        break;
+        
+      default:
+        // Default notification sound
+        frequency = 800;
+        duration = 0.2;
+        waveType = 'sine';
+    }
+    
+    oscillator.frequency.value = frequency;
+    oscillator.type = waveType;
+    
+    // Fade out to avoid clicking sound
+    const now = audioContext.currentTime;
+    gainNode.gain.setValueAtTime(0.3, now); // Start volume (0.3 = moderate)
+    gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+    
+    oscillator.start(now);
+    oscillator.stop(now + duration);
+    
+    console.log(`[Sound] Played ${type} notification (${frequency}Hz, ${duration}s)`);
+    
+    // For long break, add a second tone
+    if (type === 'long-break-complete') {
+      setTimeout(() => {
+        const oscillator2 = audioContext.createOscillator();
+        const gainNode2 = audioContext.createGain();
+        
+        oscillator2.connect(gainNode2);
+        gainNode2.connect(audioContext.destination);
+        
+        oscillator2.frequency.value = 880; // Higher note
+        oscillator2.type = 'sine';
+        
+        const now2 = audioContext.currentTime;
+        gainNode2.gain.setValueAtTime(0.25, now2);
+        gainNode2.gain.exponentialRampToValueAtTime(0.01, now2 + 0.2);
+        
+        oscillator2.start(now2);
+        oscillator2.stop(now2 + 0.2);
+      }, 150); // Slight delay between tones
+    }
+    
+  } catch (error) {
+    console.error('[Sound] Failed to play notification:', error);
+  }
+}
+
 function onPhaseComplete() {
   console.log('========================================');
   console.log('[Timer] 🔔 onPhaseComplete() CALLED');
@@ -673,6 +824,16 @@ function onPhaseComplete() {
   
   try {
     if (state.phase === 'work') {
+      // Play work complete sound
+      playNotificationSound('work-complete');
+      
+      // Show desktop notification
+      showDesktopNotification(
+        '🎯 Focus Session Complete!',
+        'Great work! Time for a break.',
+        'work-complete'
+      );
+      
       // Pomodoro completed - now enter break phase
     state.pomodorosCycleCount++;
       console.log(`[Timer] Pomodoro ${state.pomodorosCycleCount} completed. Transitioning to break.`);
@@ -719,6 +880,27 @@ function onPhaseComplete() {
   updateUI();
       sendStateUpdate(); // Notify toolbar
     } else if (state.phase === 'shortbreak' || state.phase === 'longbreak') {
+      // Determine if this was a long break
+      const wasLongBreak = state.phase === 'longbreak';
+      
+      // Play appropriate break complete sound
+      playNotificationSound(wasLongBreak ? 'long-break-complete' : 'break-complete');
+      
+      // Show desktop notification
+      if (wasLongBreak) {
+        showDesktopNotification(
+          '☕ Long Break Complete!',
+          'Feeling refreshed? Time to focus again!',
+          'long-break-complete'
+        );
+      } else {
+        showDesktopNotification(
+          '☕ Break Complete!',
+          'Ready to get back to work?',
+          'break-complete'
+        );
+      }
+      
       // Break completed - mark pomodoro as fully complete (green dot)
       console.log(`[Timer] Break completed for pomodoro ${state.currentPomodoroInBreak + 1}`);
       
@@ -734,6 +916,14 @@ function onPhaseComplete() {
       // Check if we've completed 4 full cycles (pomodoro + break)
       if (state.completedPomodoros >= 4) {
         console.log('[Timer] 4 full cycles completed! Entering REFLECT period');
+        
+        // Show special celebration notification
+        showDesktopNotification(
+          '🌟 All 4 Pomodoros Complete!',
+          'Amazing work! You\'ve completed a full cycle. Time to reflect!',
+          'cycle-complete'
+        );
+        
         state.inReflectionPeriod = true;
         state.reflectionStartTime = Date.now();
         state.phase = 'reflect';
