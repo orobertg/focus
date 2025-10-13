@@ -11,7 +11,7 @@
 
 ## ✨ What Makes Focus Special?
 
-**Focus** is a Pomodoro timer that stays visible but never gets in your way. The unique **click-through** feature lets you interact with apps behind the timer while keeping track of your productivity.
+**Focus** is a Pomodoro timer that stays visible but never gets in your way. Work with your apps and run the timer while keeping track of your productivity using just the keyboard. Simple and un-obtrusive.
 
 ### Key Features
 
