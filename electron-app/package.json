@@ -27,10 +27,10 @@
     "name": "Focus App",
     "email": "focus@example.com"
   },
-  "homepage": "https://github.com/go-robert/focus",
+  "homepage": "https://github.com/orobertg/focus",
   "repository": {
     "type": "git",
-    "url": "https://github.com/go-robert/focus.git"
+    "url": "https://github.com/orobertg/focus.git"
   },
   "license": "MIT",
   "devDependencies": {
@@ -62,19 +62,24 @@
       "!native/target",
       "!*.md"
     ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "orobertg",
+        "repo": "focus",
+        "vPrefixedTagName": true
+      }
+    ],
+
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         },
         {
           "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
         }
       ],
       "icon": "assets/icons/icon-256.png",
@@ -82,20 +87,8 @@
     },
     "mac": {
       "target": [
-        {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
       ],
       "icon": "assets/icons/icon-512.png",
       "category": "public.app-category.productivity",
@@ -106,22 +99,10 @@
       "title": "${productName} ${version}",
       "icon": "assets/icons/icon-512.png",
       "backgroundColor": "#202020",
-      "window": {
-        "width": 540,
-        "height": 380
-      },
+      "window": { "width": 540, "height": 380 },
       "contents": [
-        {
-          "x": 144,
-          "y": 150,
-          "type": "file"
-        },
-        {
-          "x": 396,
-          "y": 150,
-          "type": "link",
-          "path": "/Applications"
-        }
+        { "x": 144, "y": 150, "type": "file" },
+        { "x": 396, "y": 150, "type": "link", "path": "/Applications" }
       ]
     },
     "nsis": {
@@ -136,24 +117,9 @@
     },
     "linux": {
       "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "rpm",
-          "arch": [
-            "x64"
-          ]
-        }
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] },
+        { "target": "rpm", "arch": ["x64"] }
       ],
       "icon": "assets/icons/",
       "category": "Utility",
