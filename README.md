@@ -165,8 +165,8 @@ Focus implements the classic Pomodoro Technique:
 
 ```bash
 # Clone the repository
-git clone https://github.com/go-robert/focus_app.git
-cd focus_app/electron-app
+git clone https://github.com/go-robert/focus.git
+cd focus/electron-app
 
 # Install dependencies
 npm install
@@ -196,7 +196,7 @@ npm run build:all
 ### Project Structure
 
 ```
-focus_app/
+focus/
 ├── electron-app/           # Main application
 │   ├── main.js            # Electron main process
 │   ├── renderer.js        # Timer logic & UI
@@ -350,9 +350,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📞 Support
 
-- **Issues:** [GitHub Issues](https://github.com/go-robert/focus_app/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/go-robert/focus_app/discussions)
-- **Website:** [github.com/go-robert/focus_app](https://github.com/go-robert/focus_app)
+- **Issues:** [GitHub Issues](https://github.com/go-robert/focus/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/go-robert/focus/discussions)
+- **Website:** [github.com/go-robert/focus](https://github.com/go-robert/focus)
 
 ---
 
