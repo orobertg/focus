@@ -30,21 +30,22 @@ jobs:
             eb_target: mac
 
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}                 # token for electron-builder publish
-      ELECTRON_CACHE: ${{ runner.temp }}/electron
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # electron-builder reads this when publishing
       # publish on tags only; otherwise don't publish
       PUBLISH_MODE: ${{ startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push' && 'always' || 'never' }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
+      - name: Install deps
+        run: npm ci
 
       # (Linux only) Needed for AppImage on Ubuntu 22+/24+
       - name: Install libfuse2 (Linux)
@@ -53,13 +54,18 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfuse2
 
-      # Use electron-builder directly so we control --publish for all targets
-      - name: Build
+      - name: Build with electron-builder
+        env:
+          # Use runner temp for speed; defined at step-level to avoid named-value parsing issues
+          ELECTRON_CACHE: ${{ runner.temp }}/electron
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
+          # Skip mac identity auto-discovery (you can remove if you plan to sign)
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           echo "Publish mode: $PUBLISH_MODE"
           npx electron-builder --${{ matrix.eb_target }} --publish $PUBLISH_MODE
 
-      # Save artifacts when not publishing (PRs, branch pushes)
+      # Save artifacts when not publishing (PRs / branch pushes)
       - name: Upload dist artifacts
         if: env.PUBLISH_MODE == 'never'
         uses: actions/upload-artifact@v4
