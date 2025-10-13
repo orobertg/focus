@@ -56,18 +56,30 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libfuse2
 
-      - name: Build with electron-builder
+          - name: Build with electron-builder (Windows)
+          if: matrix.os == 'windows-latest'
+          shell: pwsh
+          working-directory: electron-app
+          env:
+            ELECTRON_CACHE: ${{ runner.temp }}/electron
+            ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
+            CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          run: |
+            echo "Publish mode: $env:PUBLISH_MODE"
+            npx electron-builder --${{ matrix.eb_target }} --publish "$env:PUBLISH_MODE"
+
+      - name: Build with electron-builder (mac/Linux)
+        if: matrix.os != 'windows-latest'
+        shell: bash
         working-directory: electron-app
         env:
-          # Speed-ups (step-level avoids named-value errors)
-          ELECTRON_CACHE: ${{ runner.temp }}/electron
-          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
-          # Skip mac identity auto-discovery unless you’re signing
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+            ELECTRON_CACHE: ${{ runner.temp }}/electron
+            ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/builder
+            CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
-          echo "Publish mode: $PUBLISH_MODE"
-          npx electron-builder --${{ matrix.eb_target }} --publish $PUBLISH_MODE
-
+            echo "Publish mode: $PUBLISH_MODE"
+            npx electron-builder --${{ matrix.eb_target }} --publish "$PUBLISH_MODE"
+        
       # Save artifacts when not publishing (PRs / branch pushes)
       - name: Upload dist artifacts
         if: env.PUBLISH_MODE == 'never'
