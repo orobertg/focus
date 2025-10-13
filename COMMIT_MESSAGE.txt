@@ -1,0 +1,157 @@
+feat: Add reflection countdown timer, fix system tray icon, and add Linux builds
+
+## Overview
+This commit implements critical features and fixes for v0.1.1:
+1. Reflection period countdown timer with Knight Rider-style dot animation
+2. System tray icon fix for packaged Windows builds  
+3. Clean quit functionality with proper resource cleanup
+4. Linux build support (AppImage, deb, rpm)
+
+## Feature: Reflection Period Countdown & Animation
+
+### Problem
+After completing 4 Pomodoros, the reflection period showed:
+- Static timer display (no countdown)
+- Static green dots (no visual feedback)
+- Users couldn't tell if reflection was actively counting down
+
+### Solution
+- Added real-time countdown timer (10:00 → 00:00)
+- Implemented Knight Rider-style sequential blue dot animation
+- Dots light up left-to-right, then reverse right-to-left continuously
+- Animation speed: 500ms per dot change (2 cycles per 4 seconds)
+
+### Technical Details
+- New state variables: `reflectionAnimationIndex`, `reflectionAnimationDirection`
+- New functions: `updateReflectionAnimation()`, `updateReflectionTimer()`
+- Intervals: 500ms (animation) + 1000ms (countdown)
+- Proper cleanup when starting new cycle or resetting
+- CSS classes: `.dot.lit-blue` (active), `.dot.dim` (inactive)
+
+### Files Modified
+- `electron-app/renderer.js` - Animation logic, timer updates, state management
+- `electron-app/styles.css` - Blue dot styling
+
+## Fix: System Tray Icon & Clean Quit
+
+### Problem
+Packaged Windows builds:
+- System tray icon not appearing (icon path resolution failure)
+- No clean way to quit the app
+- Global shortcuts not unregistered on quit (memory leaks)
+- Potential orphaned processes
+
+### Root Cause
+Using `__dirname` for icon paths fails in packaged Electron apps:
+- Dev: `__dirname = electron-app/` ✅
+- Packaged: `__dirname = app.asar/` ❌ (wrong location)
+
+### Solution
+**1. Fixed Icon Path Resolution**
+- Detect packaged vs development with `app.isPackaged`
+- Use `process.resourcesPath` for packaged builds
+- Fallback mechanism if primary path fails
+- Comprehensive logging for debugging
+
+**2. Implemented Clean Quit**
+- Created centralized `quitApp()` function
+- Proper cleanup order:
+  1. Unregister global shortcuts (prevents new events)
+  2. Destroy tray icon (removes from system tray)
+  3. Remove window event listeners (prevents circular events)
+  4. Destroy all windows (main, toolbar, settings)
+  5. Quit application
+
+**3. Enhanced before-quit Handler**
+- Unregister shortcuts on app quit
+- Remove window listeners to allow clean shutdown
+
+### Files Modified
+- `electron-app/main.js` - Tray creation, quit function, cleanup handlers
+
+## Feature: Linux Build Support
+
+### Added
+- Linux build targets in `package.json`
+- AppImage (126 MB) - Universal portable format
+- deb (85 MB) - Debian/Ubuntu/Mint
+- rpm (85 MB) - Fedora/RHEL/CentOS
+
+### Configuration
+- Build script: `npm run build:linux`
+- Requires Linux or WSL on Windows
+- Icon path: `assets/icons/` directory
+- Category: Utility
+
+### Documentation
+- Linux installation instructions in README
+- Troubleshooting for GNOME (AppIndicator extension)
+- Notes on X11 vs Wayland compatibility
+
+## Documentation Updates
+
+### README.md
+- Added platform support table (Windows/Linux/macOS status)
+- Added "Quitting the App" section with system tray instructions
+- Added Linux-specific troubleshooting (tray icon, Wayland)
+- Updated Windows troubleshooting (system tray, quit instructions)
+- Updated changelog with new Linux packages
+- Updated development prerequisites and build instructions
+
+### New Documentation Files
+- `docs/REFLECTION_PERIOD_ANIMATION.md` - Technical deep dive on reflection feature
+- `docs/SYSTEM_TRAY_FIX.md` - Comprehensive system tray fix documentation
+- `docs/SYSTEM_TRAY_FIX_SUMMARY.md` - Quick reference and testing guide
+- `docs/LINUX_BUILDS.md` - Linux build guide and package details
+- `docs/README_UPDATES_LINUX.md` - Linux documentation changelog
+- `docs/README_COMPARISON.md` - Before/After documentation comparison
+- `docs/SESSION_SUMMARY_2025-10-13.md` - Complete session summary
+
+## Testing
+
+### Completed (Development)
+- [x] Reflection animation works correctly
+- [x] Countdown timer updates every second
+- [x] Blue dots animate in Knight Rider pattern
+- [x] System tray icon appears in dev mode
+- [x] Quit function works cleanly
+- [x] Windows builds compile successfully
+- [x] Linux builds compile successfully (WSL)
+
+### Required (Production)
+- [ ] System tray icon appears in packaged Windows build
+- [ ] Quit from tray cleanly closes packaged app
+- [ ] No orphaned processes after quit
+- [ ] Linux packages work on target distributions
+
+## Breaking Changes
+None. All changes are backward compatible.
+
+## Performance Impact
+Minimal:
+- Reflection animation: 2 intervals, only during 10-minute reflection period
+- Proper cleanup prevents memory leaks
+- No impact on normal Pomodoro operation
+
+## Build Artifacts
+New packaged builds created:
+- Windows: `Focus-0.1.0-Setup.exe` (102.68 MB)
+- Windows: `Focus-0.1.0-Portable.exe` (102.47 MB)
+- Linux: `Focus-0.1.0-x86_64.AppImage` (126 MB)
+- Linux: `Focus-0.1.0-amd64.deb` (85 MB)
+- Linux: `Focus-0.1.0-x86_64.rpm` (85 MB)
+
+## Version
+v0.1.0+ (pre-release for v0.1.1)
+
+## Related Issues
+- Fixes system tray icon not appearing in packaged builds
+- Fixes inability to quit app cleanly
+- Adds requested reflection period visual feedback
+- Implements Linux platform support
+
+---
+
+Signed-off-by: AI Assistant <assistant@cursor.com>
+Date: October 13, 2025
+

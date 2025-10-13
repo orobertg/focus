@@ -501,16 +501,46 @@ function toggleClickThrough() {
 function createTray() {
   console.log('[Electron] Creating system tray...');
   
-  // Use actual icon file
-  const iconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
+  // Use process.resourcesPath in production, __dirname in dev
+  // In packaged app: resources/app.asar/assets/icons/icon-32.png
+  // In dev: electron-app/assets/icons/icon-32.png
+  let iconPath;
+  if (app.isPackaged) {
+    // Production: icon is in app.asar
+    iconPath = path.join(process.resourcesPath, 'app.asar', 'assets', 'icons', 'icon-32.png');
+  } else {
+    // Development: icon is relative to main.js
+    iconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
+  }
+  
+  console.log('[Electron] Tray icon path:', iconPath);
+  console.log('[Electron] App is packaged:', app.isPackaged);
+  console.log('[Electron] __dirname:', __dirname);
+  console.log('[Electron] process.resourcesPath:', process.resourcesPath);
+  
   const trayIcon = nativeImage.createFromPath(iconPath);
   
   if (trayIcon.isEmpty()) {
     console.error('[Electron] Failed to load tray icon from:', iconPath);
-    // App will quit if windows close without a tray
-    return;
+    // Try alternative path in case of packaging issues
+    const altIconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
+    console.log('[Electron] Trying alternative path:', altIconPath);
+    const altTrayIcon = nativeImage.createFromPath(altIconPath);
+    
+    if (altTrayIcon.isEmpty()) {
+      console.error('[Electron] Alternative path also failed. Tray will not be created.');
+      return;
+    } else {
+      console.log('[Electron] ✅ Alternative path worked!');
+      createTrayWithIcon(altTrayIcon);
+      return;
+    }
   }
   
+  createTrayWithIcon(trayIcon);
+}
+
+function createTrayWithIcon(trayIcon) {
   try {
     tray = new Tray(trayIcon);
     
@@ -560,24 +590,7 @@ function createTray() {
         label: 'Quit Focus App', 
         click: () => {
           console.log('[Tray] Quit clicked by user');
-          // Force quit - destroy everything
-          if (tray && !tray.isDestroyed()) {
-            tray.destroy();
-            tray = null;
-          }
-          
-          // Close all windows
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.destroy();
-          }
-          if (toolbarWindow && !toolbarWindow.isDestroyed()) {
-            toolbarWindow.destroy();
-          }
-          if (settingsWindow && !settingsWindow.isDestroyed()) {
-            settingsWindow.destroy();
-          }
-          
-          app.quit();
+          quitApp();
         }
       }
     ]);
@@ -608,6 +621,49 @@ function createTray() {
     tray = null;
     // App will quit if windows close without a tray
   }
+}
+
+/* ============================================
+   Clean Quit Function
+   ============================================ */
+
+function quitApp() {
+  console.log('[App] Clean quit initiated...');
+  
+  // 1. Unregister all global shortcuts
+  console.log('[App] Unregistering global shortcuts...');
+  globalShortcut.unregisterAll();
+  
+  // 2. Destroy tray icon
+  if (tray && !tray.isDestroyed()) {
+    console.log('[App] Destroying tray icon...');
+    tray.destroy();
+    tray = null;
+  }
+  
+  // 3. Close all windows gracefully
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log('[App] Closing main window...');
+    mainWindow.removeAllListeners('close');
+    mainWindow.destroy();
+    mainWindow = null;
+  }
+  
+  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
+    console.log('[App] Closing toolbar window...');
+    toolbarWindow.destroy();
+    toolbarWindow = null;
+  }
+  
+  if (settingsWindow && !settingsWindow.isDestroyed()) {
+    console.log('[App] Closing settings window...');
+    settingsWindow.destroy();
+    settingsWindow = null;
+  }
+  
+  // 4. Quit the application
+  console.log('[App] Quitting application...');
+  app.quit();
 }
 
 /* ============================================
@@ -815,8 +871,17 @@ app.on('will-quit', () => {
 
 // Handle app quit from tray
 app.on('before-quit', () => {
+  console.log('[Electron] before-quit event triggered');
+  
+  // Unregister global shortcuts to prevent memory leaks
+  globalShortcut.unregisterAll();
+  
+  // Remove event listeners from windows to allow clean shutdown
   if (mainWindow) {
     mainWindow.removeAllListeners('close');
+  }
+  if (toolbarWindow) {
+    toolbarWindow.removeAllListeners('close');
   }
 });
 

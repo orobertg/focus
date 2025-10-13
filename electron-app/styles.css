@@ -184,6 +184,14 @@ body {
   background: #fbbf24; /* Yellow for pause/break warm-up/cool-down */
 }
 
+.dot.lit-blue {
+  background: #3b82f6; /* Blue for reflection period animation */
+}
+
+.dot.dim {
+  background: rgba(255, 255, 255, 0.15); /* Dimmed gray for non-animated dots during reflection */
+}
+
 .dot.blink {
   animation: blink 1s infinite;
 }

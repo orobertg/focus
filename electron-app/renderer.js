@@ -40,6 +40,10 @@ const state = {
   inReflectionPeriod: false,
   reflectionStartTime: null,
   reflectionMinMinutes: 10,
+  reflectionAnimationIndex: 0, // 0-3, which dot is currently lit blue
+  reflectionAnimationDirection: 1, // 1 for left-to-right, -1 for right-to-left
+  reflectionAnimationIntervalId: null,
+  reflectionTimerIntervalId: null,
   
   // Configuration
   config: {
@@ -314,6 +318,17 @@ function startTimer() {
     } else {
       // End reflection period and start new cycle
       console.log('[Timer] Reflection period complete. Starting new cycle.');
+      
+      // Clear reflection intervals
+      if (state.reflectionTimerIntervalId) {
+        clearInterval(state.reflectionTimerIntervalId);
+        state.reflectionTimerIntervalId = null;
+      }
+      if (state.reflectionAnimationIntervalId) {
+        clearInterval(state.reflectionAnimationIntervalId);
+        state.reflectionAnimationIntervalId = null;
+      }
+      
       state.inReflectionPeriod = false;
       state.reflectionStartTime = null;
       state.completedPomodoros = 0;
@@ -510,6 +525,39 @@ function updateCooldown() {
   }
 }
 
+function updateReflectionAnimation() {
+  // Move to next dot
+  state.reflectionAnimationIndex += state.reflectionAnimationDirection;
+  
+  // Reverse direction if we hit the boundaries
+  if (state.reflectionAnimationIndex >= 3) {
+    // Reached rightmost dot, reverse to go left
+    state.reflectionAnimationDirection = -1;
+  } else if (state.reflectionAnimationIndex <= 0) {
+    // Reached leftmost dot, reverse to go right
+    state.reflectionAnimationDirection = 1;
+  }
+  
+  updateUI();
+}
+
+function updateReflectionTimer() {
+  if (!state.inReflectionPeriod || !state.reflectionStartTime) return;
+  
+  // Calculate remaining time
+  const elapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60; // minutes
+  const remaining = state.reflectionMinMinutes - elapsed;
+  
+  if (remaining > 0) {
+    state.millisRemaining = remaining * 60 * 1000;
+    updateUI();
+  } else {
+    // Reflection period complete
+    state.millisRemaining = 0;
+    updateUI();
+  }
+}
+
 function handleReset() {
   console.log('[Timer] Reset clicked');
   
@@ -526,8 +574,12 @@ function handleReset() {
   // Stop all intervals
   if (timerInterval) clearInterval(timerInterval);
   if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
+  if (state.reflectionTimerIntervalId) clearInterval(state.reflectionTimerIntervalId);
+  if (state.reflectionAnimationIntervalId) clearInterval(state.reflectionAnimationIntervalId);
   timerInterval = null;
   pauseBlinkInterval = null;
+  state.reflectionTimerIntervalId = null;
+  state.reflectionAnimationIntervalId = null;
   
   // Reset state (clean up old references)
   state.runState = 'idle';
@@ -931,6 +983,16 @@ function onPhaseComplete() {
         state.runState = 'idle';
         state.millisRemaining = state.reflectionMinMinutes * 60 * 1000;
         state.millisTotal = state.millisRemaining;
+        
+        // Start reflection period countdown timer (updates every second)
+        state.reflectionTimerIntervalId = setInterval(updateReflectionTimer, 1000);
+        
+        // Start reflection dot animation (Knight Rider style, changes dot every 500ms)
+        state.reflectionAnimationIndex = 0;
+        state.reflectionAnimationDirection = 1;
+        state.reflectionAnimationIntervalId = setInterval(updateReflectionAnimation, 500);
+        
+        console.log('[Timer] Reflection period started with countdown and dot animation');
       } else {
         // Transition to next pomodoro
         state.phase = 'focus';
@@ -1080,9 +1142,15 @@ function updateProgressDots() {
   dots.forEach((dot, index) => {
     dot.className = 'dot'; // Reset classes
     
-    // Priority 1: Reflection period (all green)
+    // Priority 1: Reflection period (sequential blue animation)
     if (state.inReflectionPeriod && index < 4) {
-      dot.classList.add('lit-green');
+      // Only the current animation index is lit blue, others are dimmed
+      if (index === state.reflectionAnimationIndex) {
+        dot.classList.add('lit-blue');
+      } else {
+        // Keep them slightly visible but dimmed (gray)
+        dot.classList.add('dim');
+      }
       return;
     }
     

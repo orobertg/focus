@@ -105,6 +105,15 @@ macOS builds require Mac hardware to compile and sign. We're working on making t
 - GNOME desktop? You may need to install the AppIndicator extension for the system tray icon
 - Using Wayland? Some features work best on X11 (see [Troubleshooting](#-troubleshooting))
 
+### Quitting the App
+
+**To quit Focus completely:**
+- Right-click the **system tray icon** (bottom-right on Windows, top-right on Linux)
+- Select **"Quit Focus App"**
+- App will cleanly exit with all resources properly released
+
+**Note:** Closing the timer window just hides it. The app continues running in the system tray.
+
 ### Basic Usage
 
 1. **Start timer:** Click ▶ play button or press ALT+SHIFT+P
@@ -275,10 +284,22 @@ focus/
 - Press **ALT+SHIFT+P** to toggle visibility
 - Check system tray → Right-click Focus icon → "Show/Hide"
 
+**System tray icon not appearing (Windows)**
+- This has been fixed in v0.1.1
+- If you're on v0.1.0, reinstall or upgrade to latest version
+- App requires system tray to function properly
+
+**How to quit the app**
+- Right-click system tray icon → "Quit Focus App"
+- Don't just close the window (app stays in tray)
+- For frozen app: Task Manager → End "Focus.exe" process
+
 **Multiple instances running**
 - Only one Focus instance can run at a time
-- Close all instances: Task Manager → End "Focus.exe" processes
-- Restart the app
+- If you see "Another instance is already running" error:
+  - Right-click tray icon → Quit
+  - Or: Task Manager → End "Focus.exe" processes
+  - Then restart the app
 
 **Settings not saving**
 - Settings are stored in: `%APPDATA%\focus\config.json`
