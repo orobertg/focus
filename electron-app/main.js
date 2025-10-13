@@ -501,15 +501,15 @@ function toggleClickThrough() {
 function createTray() {
   console.log('[Electron] Creating system tray...');
   
-  // Use process.resourcesPath in production, __dirname in dev
-  // In packaged app: resources/app.asar/assets/icons/icon-32.png
-  // In dev: electron-app/assets/icons/icon-32.png
+  // Icon path handling for dev vs production
+  // In production: icons are in extraResources (resources/icons/)
+  // In development: icons are in assets/icons/
   let iconPath;
   if (app.isPackaged) {
-    // Production: icon is in app.asar
-    iconPath = path.join(process.resourcesPath, 'app.asar', 'assets', 'icons', 'icon-32.png');
+    // Production: icons copied to resources/icons/ via extraResources
+    iconPath = path.join(process.resourcesPath, 'icons', 'icon-32.png');
   } else {
-    // Development: icon is relative to main.js
+    // Development: icons are in assets/icons/ relative to main.js
     iconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
   }
   
@@ -522,13 +522,18 @@ function createTray() {
   
   if (trayIcon.isEmpty()) {
     console.error('[Electron] Failed to load tray icon from:', iconPath);
-    // Try alternative path in case of packaging issues
+    console.error('[Electron] Icon file exists?', require('fs').existsSync(iconPath));
+    
+    // Try alternative path as fallback
     const altIconPath = path.join(__dirname, 'assets', 'icons', 'icon-32.png');
     console.log('[Electron] Trying alternative path:', altIconPath);
+    console.log('[Electron] Alternative path exists?', require('fs').existsSync(altIconPath));
+    
     const altTrayIcon = nativeImage.createFromPath(altIconPath);
     
     if (altTrayIcon.isEmpty()) {
-      console.error('[Electron] Alternative path also failed. Tray will not be created.');
+      console.error('[Electron] ❌ All icon paths failed. Tray will not be created.');
+      console.error('[Electron] This means the app cannot be quit cleanly from the tray.');
       return;
     } else {
       console.log('[Electron] ✅ Alternative path worked!');
@@ -537,6 +542,7 @@ function createTray() {
     }
   }
   
+  console.log('[Electron] ✅ Tray icon loaded successfully from primary path');
   createTrayWithIcon(trayIcon);
 }
 
