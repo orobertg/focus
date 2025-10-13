@@ -49,6 +49,12 @@
       "output": "dist",
       "buildResources": "assets"
     },
+    "extraResources": [
+      {
+        "from": "assets/icons/",
+        "to": "icons/"
+      }
+    ],
     "files": [
       "**/*",
       "!dist",
