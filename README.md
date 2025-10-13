@@ -43,12 +43,12 @@
 **✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
 
 **Choose your version:**
-- **Focus-0.1.0-Setup.exe** (91 MB) — Full installer with shortcuts
+- **Focus-0.1.5-Setup.exe** — Full installer with shortcuts
   - Double-click to install
   - Creates desktop and Start Menu shortcuts
   - Includes clean uninstaller
   
-- **Focus-0.1.0-Portable.exe** (91 MB) — No installation required
+- **Focus-0.1.5-Portable.exe** — No installation required
   - Run directly from any folder
   - Perfect for USB drives
   - Settings saved in AppData
@@ -59,21 +59,21 @@
 
 **Choose your version:**
 
-- **Focus-0.1.0-x86_64.AppImage** (126 MB) — Portable, works on most distros
-  - Make executable: `chmod +x Focus-0.1.0-x86_64.AppImage`
-  - Run directly: `./Focus-0.1.0-x86_64.AppImage`
+- **Focus-0.1.5-x86_64.AppImage** — Portable, works on most distros
+  - Make executable: `chmod +x Focus-0.1.5-x86_64.AppImage`
+  - Run directly: `./Focus-0.1.5-x86_64.AppImage`
   - No installation needed, runs from any location
   - Compatible with: Ubuntu, Fedora, Debian, Arch, and more
 
-- **Focus-0.1.0-amd64.deb** (85 MB) — Debian/Ubuntu installer
-  - Install: `sudo dpkg -i Focus-0.1.0-amd64.deb`
+- **Focus-0.1.5-amd64.deb** — Debian/Ubuntu installer
+  - Install: `sudo dpkg -i Focus-0.1.5-amd64.deb`
   - Or double-click in file manager
   - For Ubuntu, Debian, Linux Mint, Pop!_OS, etc.
   - Creates menu entry and shortcuts
 
-- **Focus-0.1.0-x86_64.rpm** (85 MB) — Fedora/RedHat installer
-  - Install: `sudo rpm -i Focus-0.1.0-x86_64.rpm`
-  - Or: `sudo dnf install Focus-0.1.0-x86_64.rpm`
+- **Focus-0.1.5-x86_64.rpm** — Fedora/RedHat installer
+  - Install: `sudo rpm -i Focus-0.1.5-x86_64.rpm`
+  - Or: `sudo dnf install Focus-0.1.5-x86_64.rpm`
   - For Fedora, RHEL, CentOS, openSUSE, etc.
   - Creates menu entry and shortcuts
 
@@ -83,12 +83,12 @@
 
 **Choose your version:**
 
-- **Focus-{version}-x64.dmg** — For Intel Macs
+- **Focus-0.1.5-x64.dmg** — For Intel Macs
   - Double-click to open
   - Drag Focus.app to Applications folder
   - Right-click → Open on first launch (apps are unsigned)
 
-- **Focus-{version}-arm64.dmg** — For Apple Silicon Macs (M1, M2, M3)
+- **Focus-0.1.5-arm64.dmg** — For Apple Silicon Macs (M1, M2, M3)
   - Double-click to open
   - Drag Focus.app to Applications folder
   - Right-click → Open on first launch (apps are unsigned)
@@ -339,7 +339,7 @@ focus/
 ### Linux
 
 **AppImage won't run**
-- Make it executable: `chmod +x Focus-0.1.0-x86_64.AppImage`
+- Make it executable: `chmod +x Focus-0.1.5-x86_64.AppImage`
 - Install FUSE if needed: `sudo apt install fuse libfuse2` (Ubuntu/Debian)
 - Or: `sudo dnf install fuse fuse-libs` (Fedora)
 
@@ -401,6 +401,23 @@ focus/
 ---
 
 ## 📝 Changelog
+
+### v0.1.5 (October 13, 2025) - System Tray Fix & Cross-Platform Release
+
+**Critical Bug Fixes:**
+- ✅ Fixed system tray icon not appearing in packaged Windows builds
+- ✅ Icons now properly packaged via extraResources
+- ✅ Clean quit functionality accessible from system tray
+
+**New Features:**
+- ✅ Reflection period countdown timer (10:00 → 00:00)
+- ✅ Knight Rider-style sequential blue dot animation
+- ✅ GitHub Actions automated builds for all platforms
+
+**Platform Support:**
+- ✅ Windows (Setup + Portable)
+- ✅ Linux (AppImage, deb, rpm)
+- ✅ macOS (DMG for Intel and Apple Silicon)
 
 ### v0.1.0 (October 13, 2025) - Initial Release
 
