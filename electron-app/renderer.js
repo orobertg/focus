@@ -15,6 +15,9 @@ const state = {
   millisTotal: 25 * 60 * 1000,
   pauseStartTime: null,
   pauseDuration: 0,
+
+  // Active SQLite session row (for completion / abandonment)
+  activeSession: null, // { uuid, startedAt, plannedMs, phase }
   
   // Pomodoro tracking
   completedPomodoros: 0, // 0-4, tracks green dots (only incremented after break completes)
@@ -68,7 +71,7 @@ const focusState = {
   settingsFocusableElements: [], // Filtered by current tab
   allSettingsControls: [], // All controls from all tabs
   currentTabIndex: 0, // 0=duration, 1=options, 2=notifications
-  tabs: ['duration', 'options', 'notifications'],
+  tabs: ['duration', 'options', 'notifications', 'stats'],
 };
 
 // DOM Elements
@@ -89,9 +92,16 @@ const elements = {
   tabDuration: document.getElementById('tab-duration'),
   tabOptions: document.getElementById('tab-options'),
   tabNotifications: document.getElementById('tab-notifications'),
+  tabStats: document.getElementById('tab-stats'),
   contentDuration: document.getElementById('content-duration'),
   contentOptions: document.getElementById('content-options'),
   contentNotifications: document.getElementById('content-notifications'),
+  contentStats: document.getElementById('content-stats'),
+  statsTodayFocus: document.getElementById('stats-today-focus'),
+  statsTodayPomos: document.getElementById('stats-today-pomos'),
+  statsStreak: document.getElementById('stats-streak'),
+  statsStreakSub: document.getElementById('stats-streak-sub'),
+  statsChart: document.getElementById('stats-chart'),
   workMinutesValue: document.getElementById('work-minutes-value'),
   workMinutesPrev: document.getElementById('work-minutes-prev'),
   workMinutesNext: document.getElementById('work-minutes-next'),
@@ -211,6 +221,9 @@ function init() {
   elements.tabDuration.addEventListener('click', () => switchTab('duration'));
   elements.tabOptions.addEventListener('click', () => switchTab('options'));
   elements.tabNotifications.addEventListener('click', () => switchTab('notifications'));
+  if (elements.tabStats) {
+    elements.tabStats.addEventListener('click', () => switchTab('stats'));
+  }
   
   // Set up test sound button
   if (elements.testSoundBtn) {
@@ -276,6 +289,80 @@ function sendStateUpdate() {
     runState: state.runState,
     phase: state.phase,
     isInBreakState: state.isInBreakState,
+  });
+}
+
+/* ============================================
+   Session Recording (SQLite via main-process IPC)
+   ============================================ */
+
+function normalizePhase(corePhase) {
+  if (!corePhase) return 'unknown';
+  const p = String(corePhase).toLowerCase();
+  if (p === 'work') return 'work';
+  if (p === 'shortbreak') return 'shortbreak';
+  if (p === 'longbreak') return 'longbreak';
+  return p;
+}
+
+function recordSessionStart(snapshot) {
+  if (!snapshot || !snapshot.sessionId) return;
+  const phase = normalizePhase(snapshot.phase);
+  const startedAt = Date.now();
+  const plannedMs = snapshot.millisTotal || 0;
+  const cycleIndex = snapshot.cycleIndex ?? state.pomodorosCycleCount ?? null;
+
+  state.activeSession = {
+    uuid: snapshot.sessionId,
+    startedAt,
+    plannedMs,
+    phase,
+  };
+
+  ipcRenderer.invoke('session-start', {
+    sessionUuid: snapshot.sessionId,
+    phase,
+    startedAt,
+    plannedMs,
+    cycleIndex,
+  }).then((res) => {
+    if (!res || !res.ok) {
+      console.warn('[Sessions] Failed to record session start:', res && res.error);
+    }
+  }).catch((err) => {
+    console.warn('[Sessions] session-start IPC error:', err);
+  });
+}
+
+function recordSessionComplete() {
+  const active = state.activeSession;
+  if (!active) return;
+  const endedAt = Date.now();
+  const actualMs = Math.min(endedAt - active.startedAt, active.plannedMs);
+  state.activeSession = null;
+
+  ipcRenderer.invoke('session-complete', {
+    sessionUuid: active.uuid,
+    endedAt,
+    actualMs,
+  }).catch((err) => {
+    console.warn('[Sessions] session-complete IPC error:', err);
+  });
+}
+
+function recordSessionAbandon() {
+  const active = state.activeSession;
+  if (!active) return;
+  const endedAt = Date.now();
+  const actualMs = Math.max(0, Math.min(endedAt - active.startedAt, active.plannedMs));
+  state.activeSession = null;
+
+  ipcRenderer.invoke('session-abandon', {
+    sessionUuid: active.uuid,
+    endedAt,
+    actualMs,
+  }).catch((err) => {
+    console.warn('[Sessions] session-abandon IPC error:', err);
   });
 }
 
@@ -352,11 +439,13 @@ function startTimer() {
         console.log('[Timer] Starting break session manually:', breakMinutes, 'minutes');
         const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
         snapshot = JSON.parse(snapshotJson);
+        recordSessionStart(snapshot);
         console.log('[Timer] Started break session:', snapshot);
       } else {
         // Starting a focus/work session
       const snapshotJson = rustCore.startWork();
       snapshot = JSON.parse(snapshotJson);
+      recordSessionStart(snapshot);
       console.log('[Timer] Started work session:', snapshot);
       }
     } else if (state.runState === 'paused') {
@@ -560,7 +649,10 @@ function updateReflectionTimer() {
 
 function handleReset() {
   console.log('[Timer] Reset clicked');
-  
+
+  // Record the in-flight session as abandoned before stopping
+  recordSessionAbandon();
+
   try {
     const snapshotJson = rustCore.stopTimer();
     const snapshot = JSON.parse(snapshotJson);
@@ -873,7 +965,10 @@ function onPhaseComplete() {
   console.log('[Timer] Phase:', state.phase, 'RunState:', state.runState);
   console.log('[Timer] Config:', { autoStartBreaks: state.config.autoStartBreaks, autoStartPomodoros: state.config.autoStartPomodoros });
   console.log('========================================');
-  
+
+  // Mark the just-finished session as completed before any new one starts
+  recordSessionComplete();
+
   try {
     if (state.phase === 'work') {
       // Play work complete sound
@@ -911,6 +1006,7 @@ function onPhaseComplete() {
         // Start break session in Rust core
         const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
         const snapshot = JSON.parse(snapshotJson);
+        recordSessionStart(snapshot);
         console.log('[Timer] Break snapshot from Rust core:', snapshot);
         updateStateFromSnapshot(snapshot);
         
@@ -1003,6 +1099,7 @@ function onPhaseComplete() {
           // Start work session in Rust core
           const snapshotJson = rustCore.startWork();
           const snapshot = JSON.parse(snapshotJson);
+          recordSessionStart(snapshot);
           console.log('[Timer] Next pomodoro snapshot from Rust core:', snapshot);
           updateStateFromSnapshot(snapshot);
           
@@ -1394,7 +1491,7 @@ function switchTab(tabName) {
       tab.classList.remove('active');
     }
   });
-  
+
   // Update tab content
   document.querySelectorAll('.settings-tab-content').forEach(content => {
     if (content.id === `content-${tabName}`) {
@@ -1403,6 +1500,81 @@ function switchTab(tabName) {
       content.classList.remove('active');
     }
   });
+
+  if (tabName === 'stats') {
+    refreshStats();
+  }
+}
+
+function formatFocusDuration(ms) {
+  if (!ms || ms < 0) return '0m';
+  const totalMin = Math.floor(ms / 60000);
+  const hours = Math.floor(totalMin / 60);
+  const mins = totalMin % 60;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function refreshStats() {
+  ipcRenderer.invoke('stats-get').then((res) => {
+    if (!res || !res.ok) {
+      console.warn('[Stats] Failed to fetch stats:', res && res.error);
+      return;
+    }
+    renderStats(res.stats);
+  }).catch((err) => {
+    console.warn('[Stats] stats-get IPC error:', err);
+  });
+}
+
+function renderStats(stats) {
+  if (!stats) return;
+
+  if (elements.statsTodayFocus) {
+    elements.statsTodayFocus.textContent = formatFocusDuration(stats.todayFocusMs);
+  }
+  if (elements.statsTodayPomos) {
+    const n = stats.todayPomodoros;
+    elements.statsTodayPomos.textContent = `${n} pomodoro${n === 1 ? '' : 's'}`;
+  }
+  if (elements.statsStreak) {
+    elements.statsStreak.textContent = String(stats.streak);
+  }
+  if (elements.statsStreakSub) {
+    elements.statsStreakSub.textContent = stats.streak === 1 ? 'day' : 'days';
+  }
+
+  if (elements.statsChart && Array.isArray(stats.days)) {
+    const maxMs = stats.days.reduce((m, d) => Math.max(m, d.focusMs || 0), 0);
+    const todayIdx = stats.days.length - 1;
+    const html = stats.days.map((d, i) => {
+      const heightPct = maxMs > 0 ? Math.max(2, Math.round((d.focusMs / maxMs) * 100)) : 0;
+      const isEmpty = !d.focusMs;
+      const isToday = i === todayIdx;
+      const cls = ['stats-bar-fill'];
+      if (isEmpty) cls.push('empty');
+      else if (isToday) cls.push('today');
+      const titleMs = formatFocusDuration(d.focusMs);
+      return `
+        <div class="stats-bar-col" title="${d.label}: ${titleMs} (${d.pomodoros} pomo)">
+          <div class="stats-bar-fill-wrap">
+            <div class="${cls.join(' ')}" style="height: ${heightPct}%"></div>
+          </div>
+          <div class="stats-bar-label">${escapeHtml(d.label[0] || '')}</div>
+        </div>
+      `;
+    }).join('');
+    elements.statsChart.innerHTML = html;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function setupSliderListeners() {

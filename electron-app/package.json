@@ -1,6 +1,6 @@
 {
   "name": "focus",
-  "version": "0.1.6",
+  "version": "0.2.0",
   "description": "Focus - Non-intrusive Pomodoro Timer",
   "main": "main.js",
   "productName": "Focus",
@@ -9,6 +9,8 @@
     "start:prod": "electron .",
     "check": "node check-process.js",
     "test": "echo \"No tests yet\" && exit 0",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
     "build": "electron-builder",
     "build:win": "electron-builder --win",
     "build:mac": "electron-builder --mac",
@@ -34,10 +36,12 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
     "electron": "^38.2.2",
     "electron-builder": "^26.0.12"
   },
   "dependencies": {
+    "better-sqlite3": "^12.9.0",
     "electron-localshortcut": "^3.2.1",
     "electron-store": "^8.2.0",
     "sharp": "^0.34.4"
@@ -70,16 +74,19 @@
         "vPrefixedTagName": true
       }
     ],
-
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icons/icon-256.png",
@@ -87,8 +94,20 @@
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "assets/icons/icon-512.png",
       "category": "public.app-category.productivity",
@@ -99,10 +118,22 @@
       "title": "${productName} ${version}",
       "icon": "assets/icons/icon-512.png",
       "backgroundColor": "#202020",
-      "window": { "width": 540, "height": 380 },
+      "window": {
+        "width": 540,
+        "height": 380
+      },
       "contents": [
-        { "x": 144, "y": 150, "type": "file" },
-        { "x": 396, "y": 150, "type": "link", "path": "/Applications" }
+        {
+          "x": 144,
+          "y": 150,
+          "type": "file"
+        },
+        {
+          "x": 396,
+          "y": 150,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     },
     "nsis": {
@@ -117,9 +148,24 @@
     },
     "linux": {
       "target": [
-        { "target": "AppImage", "arch": ["x64"] },
-        { "target": "deb", "arch": ["x64"] },
-        { "target": "rpm", "arch": ["x64"] }
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        }
       ],
       "icon": "assets/icons/",
       "category": "Utility",

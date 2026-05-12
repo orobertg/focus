@@ -101,7 +101,8 @@
       <div class="settings-tabs">
         <button class="settings-tab active" data-tab="duration" id="tab-duration" tabindex="-1">DURATION</button>
         <button class="settings-tab" data-tab="options" id="tab-options" tabindex="-1">OPTIONS</button>
-        <button class="settings-tab" data-tab="notifications" id="tab-notifications" tabindex="-1">NOTIFICATIONS</button>
+        <button class="settings-tab" data-tab="notifications" id="tab-notifications" tabindex="-1">ALERTS</button>
+        <button class="settings-tab" data-tab="stats" id="tab-stats" tabindex="-1">STATS</button>
       </div>
       
       <!-- Tab Content -->
@@ -240,9 +241,32 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
+
         </div>
-        
+
+        <!-- Stats Tab -->
+        <div class="settings-tab-content" id="content-stats">
+
+          <div class="stats-summary">
+            <div class="stats-block">
+              <div class="stats-label">Today</div>
+              <div class="stats-value" id="stats-today-focus">0m</div>
+              <div class="stats-sub" id="stats-today-pomos">0 pomodoros</div>
+            </div>
+            <div class="stats-block">
+              <div class="stats-label">Streak</div>
+              <div class="stats-value" id="stats-streak">0</div>
+              <div class="stats-sub" id="stats-streak-sub">days</div>
+            </div>
+          </div>
+
+          <div class="stats-chart-label">Last 7 days</div>
+          <div class="stats-chart" id="stats-chart">
+            <!-- bars injected by renderer -->
+          </div>
+
+        </div>
+
       </div>
     </div>
     <!-- End Settings Panel -->

@@ -9,6 +9,9 @@ const path = require('path');
 const Store = require('electron-store');
 const store = new Store();
 
+// SQLite session history / stats
+const sessionsDb = require('./db.js');
+
 /* ============================================
    Single Instance Lock
    ============================================ */
@@ -723,15 +726,119 @@ ipcMain.on('settings-save', (event, settings) => {
   console.log('[IPC] Saving settings:', settings);
   store.set('settings', settings);
   currentSettings = settings;
-  
+
   // Apply always-on-top setting immediately
   applyAlwaysOnTopSetting(settings.alwaysOnTop);
-  
+
   // Notify main window to apply settings
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send('settings-updated', settings);
   }
 });
+
+/* ============================================
+   Sessions IPC (session history + stats)
+   ============================================ */
+
+ipcMain.handle('session-start', (event, payload) => {
+  try {
+    sessionsDb.startSession(payload);
+    return { ok: true };
+  } catch (err) {
+    console.error('[DB] session-start failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('session-complete', (event, payload) => {
+  try {
+    const changes = sessionsDb.completeSession(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] session-complete failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('session-abandon', (event, payload) => {
+  try {
+    const changes = sessionsDb.abandonSession(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] session-abandon failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('session-find-active', () => {
+  try {
+    return { ok: true, session: sessionsDb.findActiveSession() };
+  } catch (err) {
+    console.error('[DB] session-find-active failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('session-delete', (event, sessionUuid) => {
+  try {
+    const changes = sessionsDb.deleteSession(sessionUuid);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] session-delete failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('stats-get', () => {
+  try {
+    return { ok: true, stats: sessionsDb.getStats() };
+  } catch (err) {
+    console.error('[DB] stats-get failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+/* ============================================
+   Session Recovery Dialog
+   ============================================ */
+
+async function maybePromptSessionRecovery() {
+  let active = null;
+  try {
+    active = sessionsDb.findActiveSession();
+  } catch (err) {
+    console.error('[Recovery] failed to check for active session:', err);
+    return;
+  }
+  if (!active) return;
+
+  const elapsedMin = Math.round(((Date.now() - active.started_at) / 60000));
+  const phaseLabel = (active.phase === 'work' || active.phase === 'Work') ? 'focus' : 'break';
+
+  const choice = await dialog.showMessageBox({
+    type: 'question',
+    buttons: ['Keep as completed', 'Discard'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Unfinished session detected',
+    message: `Focus exited mid-${phaseLabel} session.`,
+    detail: `Started ~${elapsedMin} minute(s) ago. Keep it as completed for stats, or discard?`,
+  });
+
+  const endedAt = Date.now();
+  const actualMs = Math.min(endedAt - active.started_at, active.planned_ms);
+  if (choice.response === 0) {
+    sessionsDb.completeSession({
+      sessionUuid: active.session_uuid,
+      endedAt,
+      actualMs,
+    });
+    console.log('[Recovery] kept unfinished session as completed:', active.session_uuid);
+  } else {
+    sessionsDb.deleteSession(active.session_uuid);
+    console.log('[Recovery] discarded unfinished session:', active.session_uuid);
+  }
+}
 
 /* ============================================
    Global Shortcuts
@@ -809,11 +916,23 @@ app.whenReady().then(() => {
   console.log('[Electron] App ready!');
   console.log('[Electron] Process ID:', process.pid);
   console.log('[Electron] ========================================');
-  
+
+  try {
+    sessionsDb.initDb();
+    console.log('[Electron] SQLite database initialized');
+  } catch (err) {
+    console.error('[Electron] Failed to initialize database:', err);
+  }
+
   createWindow();
   createTray();
   registerGlobalShortcuts();
-  
+
+  // Check for an unfinished session left over from a prior run
+  maybePromptSessionRecovery().catch((err) => {
+    console.error('[Recovery] prompt failed:', err);
+  });
+
   // Verify app is properly initialized
   console.log('[Electron] ========================================');
   console.log('[Electron] App initialization complete');
@@ -870,7 +989,15 @@ app.on('will-quit', () => {
     tray = null;
     console.log('[Electron] Tray icon destroyed');
   }
-  
+
+  // Close database connection
+  try {
+    sessionsDb.close();
+    console.log('[Electron] Database closed');
+  } catch (err) {
+    console.error('[Electron] Error closing database:', err);
+  }
+
   console.log('[Electron] Cleanup complete - process will exit');
   console.log('[Electron] ========================================');
 });
