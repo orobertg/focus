@@ -60,6 +60,20 @@ body {
   pointer-events: auto;
 }
 
+.panel-notes {
+  transform: translateX(100%);
+  background: rgb(32, 32, 32);
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  pointer-events: auto;
+}
+
+.panel-notes * {
+  -webkit-app-region: no-drag;
+}
+
 .panel-settings * {
   -webkit-app-region: no-drag;
 }
@@ -71,6 +85,18 @@ body {
 
 .panels-container.show-settings .panel-settings {
   transform: translateX(0);
+}
+
+.panels-container.show-notes .panel-timer {
+  transform: translateX(-100%);
+}
+
+.panels-container.show-notes .panel-notes {
+  transform: translateX(0);
+}
+
+.panels-container.show-notes .panel-settings {
+  transform: translateX(100%);
 }
 
 /* ============================================
@@ -783,5 +809,86 @@ body.debug-mode::before {
 .test-sound-btn:active {
   background: rgba(255, 255, 255, 0.2);
   transform: translateY(0);
+}
+
+.notes-header {
+  padding: 48px 20px 12px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+}
+
+.notes-content {
+  padding: 12px 20px 20px 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.notes-quick-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.notes-quick-add input {
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+}
+
+.notes-quick-add input::placeholder {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.notes-quick-add input:focus {
+  border-color: rgba(251, 191, 36, 0.9);
+  box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
+}
+
+.notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.note-item {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+.note-title {
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.note-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.note-task {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+}
+
+.note-task.done .note-task-text {
+  text-decoration: line-through;
+  opacity: 0.65;
 }
 

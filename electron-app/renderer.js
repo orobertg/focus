@@ -74,11 +74,16 @@ const focusState = {
   tabs: ['duration', 'options', 'notifications', 'stats'],
 };
 
+const notesState = {
+  notes: [],
+};
+
 // DOM Elements
 const elements = {
   panelsContainer: document.getElementById('panels-container'),
   timerPanel: document.getElementById('timer-panel'),
   settingsPanel: document.getElementById('settings-panel'),
+  notesPanel: document.getElementById('notes-panel'),
   bubble: document.getElementById('timer-bubble'),
   phaseIcon: document.getElementById('phase-icon'),
   timerDisplay: document.getElementById('timer-display'),
@@ -120,6 +125,10 @@ const elements = {
   autoStartPomodorosInput: document.getElementById('auto-start-pomodoros'),
   showNotificationsInput: document.getElementById('show-notifications'),
   alwaysOnTopToggle: document.getElementById('always-on-top-toggle'),
+  closeNotesBtn: document.getElementById('close-notes-btn'),
+  notesQuickAddInput: document.getElementById('notes-quick-add-input'),
+  notesQuickAddBtn: document.getElementById('notes-quick-add-btn'),
+  notesList: document.getElementById('notes-list'),
 };
 
 // Timer interval
@@ -232,6 +241,21 @@ function init() {
       playNotificationSound('work-complete');
     });
   }
+
+  if (elements.closeNotesBtn) {
+    elements.closeNotesBtn.addEventListener('click', hideNotes);
+  }
+  if (elements.notesQuickAddBtn) {
+    elements.notesQuickAddBtn.addEventListener('click', createNoteFromInput);
+  }
+  if (elements.notesQuickAddInput) {
+    elements.notesQuickAddInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        createNoteFromInput();
+      }
+    });
+  }
   
   // Set up slider listeners for real-time updates
   setupSliderListeners();
@@ -279,8 +303,9 @@ function init() {
 }
 
 function handleNotes() {
-  console.log('[Notes] Clicked (TODO: Implement notes panel)');
-  // TODO: Open notes panel
+  console.log('[Notes] Opening notes panel');
+  showNotes();
+  loadNotes();
 }
 
 // Send state updates to toolbar via IPC
@@ -1406,7 +1431,8 @@ function applyPreset(workMinutes, breakMinutes) {
 
 function showSettings() {
   console.log('[Settings] Opening settings panel');
-  
+
+  elements.panelsContainer.classList.remove('show-notes');
   elements.panelsContainer.classList.add('show-settings');
   
   // Clean up ALL timer button focus indicators when opening settings
@@ -1480,6 +1506,119 @@ function hideSettings() {
     focusState.timerFocusableElements[1].classList.add('keyboard-focus');
     console.log('[Settings] Panel closed - timer focus reset to START button with visual indicator');
   }
+}
+
+function showNotes() {
+  if (!elements.panelsContainer) return;
+  elements.panelsContainer.classList.remove('show-settings');
+  elements.panelsContainer.classList.add('show-notes');
+  setTimeout(() => {
+    if (elements.notesQuickAddInput) {
+      elements.notesQuickAddInput.focus();
+    }
+  }, 0);
+}
+
+function hideNotes() {
+  if (!elements.panelsContainer) return;
+  elements.panelsContainer.classList.remove('show-notes');
+  focusState.timerFocusIndex = 1;
+  if (focusState.timerFocusableElements[1]) {
+    focusState.timerFocusableElements[1].classList.add('keyboard-focus');
+  }
+}
+
+function loadNotes() {
+  ipcRenderer.invoke('notes-list').then((res) => {
+    if (!res || !res.ok) {
+      console.warn('[Notes] Failed to load notes:', res && res.error);
+      return;
+    }
+    notesState.notes = Array.isArray(res.notes) ? res.notes : [];
+    renderNotes();
+  }).catch((err) => {
+    console.warn('[Notes] notes-list IPC error:', err);
+  });
+}
+
+function renderNotes() {
+  if (!elements.notesList) return;
+  if (!notesState.notes.length) {
+    elements.notesList.innerHTML = '<div class="stats-sub">No notes yet</div>';
+    return;
+  }
+
+  const html = notesState.notes.map((note) => {
+    const taskRows = (note.tasks || []).map((task) => `
+      <label class="note-task ${task.done ? 'done' : ''}">
+        <input type="checkbox" data-task-id="${task.id}" ${task.done ? 'checked' : ''} />
+        <span class="note-task-text">${escapeHtml(task.text)}</span>
+      </label>
+    `).join('');
+
+    return `
+      <div class="note-item" data-note-id="${note.id}">
+        <div class="note-title">${escapeHtml(note.title)}</div>
+        <div class="note-tasks">${taskRows || '<div class="stats-sub">No tasks</div>'}</div>
+      </div>
+    `;
+  }).join('');
+
+  elements.notesList.innerHTML = html;
+  elements.notesList.querySelectorAll('input[type="checkbox"][data-task-id]').forEach((input) => {
+    input.addEventListener('change', onTaskToggle);
+  });
+}
+
+function createNoteFromInput() {
+  const input = elements.notesQuickAddInput;
+  if (!input) return;
+  const title = input.value.trim();
+  if (!title) return;
+
+  ipcRenderer.invoke('note-create', { title, bodyMd: '' }).then((res) => {
+    if (!res || !res.ok || !res.note) {
+      console.warn('[Notes] note-create failed:', res && res.error);
+      return;
+    }
+    input.value = '';
+    notesState.notes = [res.note, ...notesState.notes];
+    renderNotes();
+  }).catch((err) => {
+    console.warn('[Notes] note-create IPC error:', err);
+  });
+}
+
+function onTaskToggle(event) {
+  const taskId = parseInt(event.target.dataset.taskId, 10);
+  const done = !!event.target.checked;
+  if (!taskId) return;
+
+  ipcRenderer.invoke('task-toggle', { taskId, done }).then((res) => {
+    if (!res || !res.ok) {
+      console.warn('[Notes] task-toggle failed:', res && res.error);
+      return;
+    }
+    for (const note of notesState.notes) {
+      const task = (note.tasks || []).find((t) => t.id === taskId);
+      if (task) {
+        task.done = done;
+        break;
+      }
+    }
+    renderNotes();
+  }).catch((err) => {
+    console.warn('[Notes] task-toggle IPC error:', err);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function switchTab(tabName) {
@@ -1926,6 +2065,8 @@ function initializeFocusManagement() {
 function handleKeyboardNavigation(e) {
   const isSettingsOpen = elements.panelsContainer && 
                         elements.panelsContainer.classList.contains('show-settings');
+  const isNotesOpen = elements.panelsContainer &&
+                      elements.panelsContainer.classList.contains('show-notes');
   
   focusState.currentContext = isSettingsOpen ? 'settings' : 'timer';
   
@@ -1936,6 +2077,13 @@ function handleKeyboardNavigation(e) {
       e.preventDefault();
       e.stopPropagation();
       hideSettings();
+      return;
+    }
+    if (isNotesOpen) {
+      console.log('[Keyboard] Escape pressed - closing notes');
+      e.preventDefault();
+      e.stopPropagation();
+      hideNotes();
       return;
     }
   }

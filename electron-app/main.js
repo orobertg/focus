@@ -799,6 +799,49 @@ ipcMain.handle('stats-get', () => {
 });
 
 /* ============================================
+   Notes IPC (notes + note tasks)
+   ============================================ */
+
+ipcMain.handle('notes-list', () => {
+  try {
+    return { ok: true, notes: sessionsDb.listNotes() };
+  } catch (err) {
+    console.error('[DB] notes-list failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('note-create', (event, payload) => {
+  try {
+    const note = sessionsDb.createNote(payload);
+    return { ok: true, note };
+  } catch (err) {
+    console.error('[DB] note-create failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('task-create', (event, payload) => {
+  try {
+    const task = sessionsDb.createTask(payload);
+    return { ok: true, task };
+  } catch (err) {
+    console.error('[DB] task-create failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('task-toggle', (event, payload) => {
+  try {
+    const result = sessionsDb.toggleTask(payload);
+    return { ok: true, ...result };
+  } catch (err) {
+    console.error('[DB] task-toggle failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+/* ============================================
    Session Recovery Dialog
    ============================================ */
 
@@ -874,10 +917,15 @@ function registerGlobalShortcuts() {
       // TODO: Implement screenshot functionality
     });
     
-    // ALT+SHIFT+N: Open notes (TODO: Implement)
+    // ALT+SHIFT+N: Open notes panel
     globalShortcut.register('Alt+Shift+N', () => {
-      console.log('[Shortcut] ALT+SHIFT+N pressed - Open notes (TODO)');
-      // TODO: Implement notes panel
+      console.log('[Shortcut] ALT+SHIFT+N pressed - Open notes');
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.show();
+        mainWindow.focus();
+        ensureAlwaysOnTop();
+        mainWindow.webContents.send('toolbar-command', 'notes');
+      }
     });
     
     // ALT+SHIFT+O: Open options/settings
@@ -897,7 +945,7 @@ function registerGlobalShortcuts() {
     console.log('[Electron]   ALT+SHIFT+C: Toggle click-through');
     console.log('[Electron]   ALT+SHIFT+O: Open options/settings');
     console.log('[Electron]   ALT+SHIFT+S: Screenshot (TODO)');
-    console.log('[Electron]   ALT+SHIFT+N: Open notes (TODO)');
+    console.log('[Electron]   ALT+SHIFT+N: Open notes');
   } catch (error) {
     console.error('[Electron] Failed to register global shortcuts:', error);
   }

@@ -8,7 +8,7 @@ const fs = require('fs');
 const { app } = require('electron');
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 let db = null;
 
@@ -63,6 +63,37 @@ function runMigrations() {
       CREATE INDEX idx_sessions_started_at ON sessions(started_at);
       CREATE INDEX idx_sessions_status ON sessions(status);
     `);
+    db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run('1');
+  }
+
+  if (current < 2) {
+    console.log('[DB] Running migration to v2 (notes + note_tasks)');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        body_md TEXT NOT NULL DEFAULT '',
+        pinned INTEGER NOT NULL DEFAULT 0,
+        archived INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+      );
+
+      CREATE TABLE IF NOT EXISTS note_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        note_id INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        done INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+        updated_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000),
+        FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_notes_updated_at ON notes(updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_note_tasks_note_id_sort ON note_tasks(note_id, sort_order ASC);
+      CREATE INDEX IF NOT EXISTS idx_note_tasks_done ON note_tasks(done);
+    `);
     db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run(String(SCHEMA_VERSION));
   }
 }
@@ -75,6 +106,10 @@ const stmts = {
   deleteSession: null,
   todaySessions: null,
   rangeSessions: null,
+  listNotesWithTasks: null,
+  createNote: null,
+  createTask: null,
+  toggleTask: null,
 };
 
 function prepStmts() {
@@ -103,6 +138,34 @@ function prepStmts() {
       FROM sessions
      WHERE started_at >= ? AND started_at < ?
      ORDER BY started_at ASC
+  `);
+  stmts.listNotesWithTasks = db.prepare(`
+    SELECT
+      n.id AS note_id,
+      n.title AS note_title,
+      n.body_md AS note_body_md,
+      n.updated_at AS note_updated_at,
+      t.id AS task_id,
+      t.text AS task_text,
+      t.done AS task_done,
+      t.sort_order AS task_sort_order
+    FROM notes n
+    LEFT JOIN note_tasks t ON t.note_id = n.id
+    WHERE n.archived = 0
+    ORDER BY n.updated_at DESC, t.sort_order ASC, t.id ASC
+  `);
+  stmts.createNote = db.prepare(`
+    INSERT INTO notes (title, body_md, updated_at)
+    VALUES (@title, @body_md, @updated_at)
+  `);
+  stmts.createTask = db.prepare(`
+    INSERT INTO note_tasks (note_id, text, done, sort_order, updated_at)
+    VALUES (@note_id, @text, 0, @sort_order, @updated_at)
+  `);
+  stmts.toggleTask = db.prepare(`
+    UPDATE note_tasks
+       SET done = @done, updated_at = @updated_at
+     WHERE id = @task_id
   `);
 }
 
@@ -200,6 +263,83 @@ function getStats() {
   };
 }
 
+function listNotes() {
+  if (!stmts.listNotesWithTasks) prepStmts();
+  const rows = stmts.listNotesWithTasks.all();
+  const byId = new Map();
+
+  for (const r of rows) {
+    if (!byId.has(r.note_id)) {
+      byId.set(r.note_id, {
+        id: r.note_id,
+        title: r.note_title,
+        bodyMd: r.note_body_md,
+        updatedAt: r.note_updated_at,
+        tasks: [],
+      });
+    }
+    if (r.task_id !== null && r.task_id !== undefined) {
+      byId.get(r.note_id).tasks.push({
+        id: r.task_id,
+        text: r.task_text,
+        done: r.task_done === 1,
+        sortOrder: r.task_sort_order,
+      });
+    }
+  }
+
+  return Array.from(byId.values());
+}
+
+function createNote({ title, bodyMd = '' }) {
+  if (!stmts.createNote) prepStmts();
+  const now = Date.now();
+  const result = stmts.createNote.run({
+    title,
+    body_md: bodyMd,
+    updated_at: now,
+  });
+  return {
+    id: result.lastInsertRowid,
+    title,
+    bodyMd,
+    updatedAt: now,
+    tasks: [],
+  };
+}
+
+function createTask({ noteId, text }) {
+  if (!stmts.createTask) prepStmts();
+  const now = Date.now();
+  const nextSort = db.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM note_tasks WHERE note_id = ?`).get(noteId);
+  const result = stmts.createTask.run({
+    note_id: noteId,
+    text,
+    sort_order: nextSort.next,
+    updated_at: now,
+  });
+  db.prepare(`UPDATE notes SET updated_at = ? WHERE id = ?`).run(now, noteId);
+  return {
+    id: result.lastInsertRowid,
+    noteId,
+    text,
+    done: false,
+    sortOrder: nextSort.next,
+    updatedAt: now,
+  };
+}
+
+function toggleTask({ taskId, done }) {
+  if (!stmts.toggleTask) prepStmts();
+  const now = Date.now();
+  const changes = stmts.toggleTask.run({
+    task_id: taskId,
+    done: done ? 1 : 0,
+    updated_at: now,
+  }).changes;
+  return { changes, updatedAt: now };
+}
+
 function close() {
   if (db) {
     db.close();
@@ -215,5 +355,9 @@ module.exports = {
   findActiveSession,
   deleteSession,
   getStats,
+  listNotes,
+  createNote,
+  createTask,
+  toggleTask,
   close,
 };
