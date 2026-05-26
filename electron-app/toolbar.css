@@ -9,7 +9,7 @@ body {
   height: 100vh;
   background: rgb(32, 32, 32); /* Match the toolbar background */
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   overflow: hidden;
@@ -20,16 +20,23 @@ body {
   border-radius: 12px; /* More rounded corners to match timer */
 }
 
+.toolbar-shell {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
   background: rgb(32, 32, 32); /* Solid dark background, no transparency */
-  border-radius: 0; /* No border radius needed - body handles it */
+  border-radius: 0;
   -webkit-app-region: drag; /* Draggable */
   width: 100%;
-  height: 100%;
+  height: 52px;
 }
 
 .toolbar-btn {
@@ -95,5 +102,114 @@ body {
 .toolbar-preset:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #ffffff;
+}
+
+.toolbar-notes-panel {
+  display: none;
+  flex: 1;
+  padding: 10px 12px 12px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(32, 32, 32);
+  -webkit-app-region: no-drag;
+  overflow-y: auto;
+}
+
+body.notes-open .toolbar-notes-panel {
+  display: block;
+}
+
+.toolbar-notes-add {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.toolbar-note-input,
+#toolbar-note-input {
+  flex: 1;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 0 9px;
+  font-size: 12px;
+}
+
+#toolbar-note-input:focus {
+  outline: none;
+  border-color: rgba(251, 191, 36, 0.85);
+}
+
+.toolbar-notes-add-btn {
+  height: 30px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.toolbar-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toolbar-note-item {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.toolbar-note-title {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.toolbar-task-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 4px;
+}
+
+.toolbar-task-row.done .toolbar-task-text {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.toolbar-task-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.toolbar-task-add input {
+  flex: 1;
+  height: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  padding: 0 8px;
+  font-size: 11px;
+}
+
+.toolbar-task-add input:focus {
+  outline: none;
+  border-color: rgba(251, 191, 36, 0.8);
+}
+
+.toolbar-empty {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
 }
 

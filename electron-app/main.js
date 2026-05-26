@@ -67,6 +67,8 @@ let currentSettings = null; // Store current settings including alwaysOnTop
 let isDocked = false; // Track if window is docked
 let dockedEdge = null; // Track which edge: 'top', 'bottom', 'left', 'right'
 let isCollapsed = false; // Track if window is collapsed when docked
+const TOOLBAR_COLLAPSED_HEIGHT = 52;
+const TOOLBAR_NOTES_HEIGHT = 320;
 
 /* ============================================
    Window Creation
@@ -683,10 +685,25 @@ function quitApp() {
 ipcMain.on('toolbar-action', (event, action) => {
   console.log('[IPC] Toolbar action received:', action);
   
+  if (action === 'notes') {
+    if (toolbarWindow && toolbarWindow.webContents) {
+      toolbarWindow.webContents.send('toolbar-notes-toggle');
+    }
+    return;
+  }
+
   if (!mainWindow || !mainWindow.webContents) return;
-  
-  // Forward action to main window
   mainWindow.webContents.send('toolbar-command', action);
+});
+
+ipcMain.on('toolbar-notes-visibility', (event, payload) => {
+  if (!toolbarWindow || toolbarWindow.isDestroyed()) return;
+  const open = payload && payload.open === true;
+  const [x, y] = toolbarWindow.getPosition();
+  const [w] = toolbarWindow.getSize();
+  const nextHeight = open ? TOOLBAR_NOTES_HEIGHT : TOOLBAR_COLLAPSED_HEIGHT;
+  toolbarWindow.setBounds({ x, y, width: w, height: nextHeight });
+  ensureAlwaysOnTop();
 });
 
 // Listen for state updates from main window to forward to toolbar
@@ -920,11 +937,11 @@ function registerGlobalShortcuts() {
     // ALT+SHIFT+N: Open notes panel
     globalShortcut.register('Alt+Shift+N', () => {
       console.log('[Shortcut] ALT+SHIFT+N pressed - Open notes');
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.show();
-        mainWindow.focus();
+      if (toolbarWindow && toolbarWindow.webContents) {
+        if (!toolbarWindow.isVisible()) toolbarWindow.show();
+        toolbarWindow.focus();
         ensureAlwaysOnTop();
-        mainWindow.webContents.send('toolbar-command', 'notes');
+        toolbarWindow.webContents.send('toolbar-notes-toggle');
       }
     });
     
