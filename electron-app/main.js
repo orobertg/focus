@@ -700,10 +700,19 @@ ipcMain.on('toolbar-notes-visibility', (event, payload) => {
   if (!toolbarWindow || toolbarWindow.isDestroyed()) return;
   const open = payload && payload.open === true;
   const [x, y] = toolbarWindow.getPosition();
-  const [w] = toolbarWindow.getSize();
-  const nextHeight = open ? TOOLBAR_NOTES_HEIGHT : TOOLBAR_COLLAPSED_HEIGHT;
-  toolbarWindow.setBounds({ x, y, width: w, height: nextHeight });
+  const [currentW] = toolbarWindow.getSize();
+  const nextW = open ? Math.max(260, Math.min(520, payload.width  || currentW))  : 320;
+  const nextH = open ? Math.max(200, Math.min(640, payload.height || TOOLBAR_NOTES_HEIGHT)) : TOOLBAR_COLLAPSED_HEIGHT;
+  toolbarWindow.setBounds({ x, y, width: nextW, height: nextH });
   ensureAlwaysOnTop();
+});
+
+ipcMain.on('toolbar-resize', (event, payload) => {
+  if (!toolbarWindow || toolbarWindow.isDestroyed()) return;
+  const [x, y] = toolbarWindow.getPosition();
+  const w = Math.max(260, Math.min(520, payload.width  || 320));
+  const h = Math.max(200, Math.min(640, payload.height || 320));
+  toolbarWindow.setBounds({ x, y, width: w, height: h });
 });
 
 // Listen for state updates from main window to forward to toolbar
@@ -858,6 +867,96 @@ ipcMain.handle('task-toggle', (event, payload) => {
   }
 });
 
+ipcMain.handle('note-delete', (event, payload) => {
+  try {
+    const changes = sessionsDb.deleteNote(payload.noteId);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] note-delete failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('task-delete', (event, payload) => {
+  try {
+    const changes = sessionsDb.deleteTask(payload.taskId);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] task-delete failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('note-add-time', (event, payload) => {
+  try {
+    const changes = sessionsDb.addTimeToNote(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] note-add-time failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('task-add-time', (event, payload) => {
+  try {
+    const changes = sessionsDb.addTimeToTask(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] task-add-time failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('task-update', (event, payload) => {
+  try {
+    const changes = sessionsDb.updateTaskText(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] task-update failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('note-update', (event, payload) => {
+  try {
+    const changes = sessionsDb.updateNoteTitle(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] note-update failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('project-list', () => {
+  try {
+    const projects = sessionsDb.listProjects();
+    return { ok: true, projects };
+  } catch (err) {
+    console.error('[DB] project-list failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('project-create', (event, payload) => {
+  try {
+    const project = sessionsDb.createProject(payload);
+    return { ok: true, project };
+  } catch (err) {
+    console.error('[DB] project-create failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
+ipcMain.handle('note-set-project', (event, payload) => {
+  try {
+    const changes = sessionsDb.setNoteProject(payload);
+    return { ok: true, changes };
+  } catch (err) {
+    console.error('[DB] note-set-project failed:', err);
+    return { ok: false, error: err.message };
+  }
+});
+
 /* ============================================
    Session Recovery Dialog
    ============================================ */
@@ -942,6 +1041,16 @@ function registerGlobalShortcuts() {
         toolbarWindow.focus();
         ensureAlwaysOnTop();
         toolbarWindow.webContents.send('toolbar-notes-toggle');
+      }
+    });
+
+    // CTRL+SPACE: New note — open panel, open add form, focus title input
+    globalShortcut.register('CmdOrCtrl+Space', () => {
+      console.log('[Shortcut] CTRL+SPACE pressed - New note');
+      if (toolbarWindow && toolbarWindow.webContents) {
+        if (!toolbarWindow.isVisible()) toolbarWindow.show();
+        ensureAlwaysOnTop();
+        toolbarWindow.webContents.send('toolbar-notes-focus-new');
       }
     });
     

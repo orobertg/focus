@@ -92,6 +92,8 @@ const elements = {
   progressCircle: document.getElementById('progress-circle'),
   startPauseBtn: document.getElementById('start-pause-btn'),
   resetBtn: document.getElementById('reset-btn'),
+  stopBtn: document.getElementById('stop-btn'),
+  extendBtn: document.getElementById('extend-btn'),
   settingsBtn: document.getElementById('settings-btn'),
   closeSettingsBtn: document.getElementById('close-settings-btn'),
   tabDuration: document.getElementById('tab-duration'),
@@ -170,6 +172,8 @@ function init() {
   // Set up event listeners for timer controls
   elements.startPauseBtn.addEventListener('click', handleStartPause);
   elements.resetBtn.addEventListener('click', handleReset);
+  elements.stopBtn.addEventListener('click', handleReset);
+  elements.extendBtn.addEventListener('click', handleExtend);
   elements.settingsBtn.addEventListener('click', () => showSettings());
   
   // Close settings button - use multiple strategies to ensure it works
@@ -274,6 +278,9 @@ function init() {
     switch (action) {
       case 'toggle-play':
         handleStartPause();
+        break;
+      case 'play-if-idle':
+        if (state.runState === 'idle') handleStartPause();
         break;
       case 'reset':
         handleReset();

@@ -8,7 +8,7 @@ const fs = require('fs');
 const { app } = require('electron');
 const Database = require('better-sqlite3');
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 6;
 
 let db = null;
 
@@ -96,6 +96,56 @@ function runMigrations() {
     `);
     db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run(String(SCHEMA_VERSION));
   }
+
+  if (current < 3) {
+    console.log('[DB] Running migration to v3 (task_type)');
+    db.exec(`ALTER TABLE note_tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task'`);
+    db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run('3');
+  }
+
+  if (current < 4) {
+    console.log('[DB] Running migration to v4 (task time_ms, update text/title)');
+    db.exec(`ALTER TABLE note_tasks ADD COLUMN time_ms INTEGER NOT NULL DEFAULT 0`);
+    db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run('4');
+  }
+
+  if (current < 5) {
+    console.log('[DB] Running migration to v5 (notes time_ms)');
+    db.exec(`ALTER TABLE notes ADD COLUMN time_ms INTEGER NOT NULL DEFAULT 0`);
+    db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run('5');
+  }
+
+  if (current < 6) {
+    console.log('[DB] Running migration to v6 (projects + seed note)');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        color TEXT NOT NULL DEFAULT '#6b7280',
+        created_at INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER) * 1000)
+      );
+      ALTER TABLE notes ADD COLUMN project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL;
+    `);
+    const now = Date.now();
+    const nr = db.prepare(`INSERT INTO notes (title, body_md, updated_at) VALUES (?, ?, ?)`).run('Notes & Timer Quick Start', '', now);
+    const nid = nr.lastInsertRowid;
+    [
+      ['Ctrl+Space   — open the notes panel and create a new note', 'text'],
+      ['Tab from title → jump straight to task input', 'text'],
+      ['Ctrl+T        — toggle checkbox task ↔ plain text line', 'text'],
+      ['Ctrl+Enter    — save task and collapse the note', 'text'],
+      ['↑ / ↓        — navigate between notes and tasks', 'text'],
+      ['→             — link selected task or note to Pomodoro timer', 'text'],
+      ['←             — pause the timer', 'text'],
+      ['Space         — inline-edit the selected item', 'text'],
+      ['Escape        — close form or panel', 'text'],
+      ['# tag button  — assign a note to a project for time reports', 'text'],
+    ].forEach(([text, task_type], i) => {
+      db.prepare(`INSERT INTO note_tasks (note_id, text, done, sort_order, task_type, updated_at) VALUES (?, ?, 0, ?, ?, ?)`)
+        .run(nid, text, i, task_type, now);
+    });
+    db.prepare(`INSERT OR REPLACE INTO schema_meta (key, value) VALUES ('version', ?)`).run('6');
+  }
 }
 
 const stmts = {
@@ -110,6 +160,15 @@ const stmts = {
   createNote: null,
   createTask: null,
   toggleTask: null,
+  deleteNote: null,
+  deleteTask: null,
+  addTimeToTask: null,
+  addTimeToNote: null,
+  updateTaskText: null,
+  updateNoteTitle: null,
+  listProjects: null,
+  createProject: null,
+  setNoteProject: null,
 };
 
 function prepStmts() {
@@ -145,11 +204,18 @@ function prepStmts() {
       n.title AS note_title,
       n.body_md AS note_body_md,
       n.updated_at AS note_updated_at,
+      n.time_ms AS note_time_ms,
+      n.project_id AS note_project_id,
+      p.name AS project_name,
+      p.color AS project_color,
       t.id AS task_id,
       t.text AS task_text,
       t.done AS task_done,
-      t.sort_order AS task_sort_order
+      t.sort_order AS task_sort_order,
+      t.task_type AS task_task_type,
+      t.time_ms AS task_time_ms
     FROM notes n
+    LEFT JOIN projects p ON p.id = n.project_id
     LEFT JOIN note_tasks t ON t.note_id = n.id
     WHERE n.archived = 0
     ORDER BY n.updated_at DESC, t.sort_order ASC, t.id ASC
@@ -159,14 +225,23 @@ function prepStmts() {
     VALUES (@title, @body_md, @updated_at)
   `);
   stmts.createTask = db.prepare(`
-    INSERT INTO note_tasks (note_id, text, done, sort_order, updated_at)
-    VALUES (@note_id, @text, 0, @sort_order, @updated_at)
+    INSERT INTO note_tasks (note_id, text, done, sort_order, task_type, updated_at)
+    VALUES (@note_id, @text, 0, @sort_order, @task_type, @updated_at)
   `);
   stmts.toggleTask = db.prepare(`
     UPDATE note_tasks
        SET done = @done, updated_at = @updated_at
      WHERE id = @task_id
   `);
+  stmts.deleteNote = db.prepare(`DELETE FROM notes WHERE id = ?`);
+  stmts.deleteTask = db.prepare(`DELETE FROM note_tasks WHERE id = ?`);
+  stmts.addTimeToTask = db.prepare(`UPDATE note_tasks SET time_ms = time_ms + @ms WHERE id = @task_id`);
+  stmts.addTimeToNote = db.prepare(`UPDATE notes SET time_ms = time_ms + @ms WHERE id = @note_id`);
+  stmts.updateTaskText = db.prepare(`UPDATE note_tasks SET text = @text, updated_at = @now WHERE id = @task_id`);
+  stmts.updateNoteTitle = db.prepare(`UPDATE notes SET title = @title, updated_at = @now WHERE id = @note_id`);
+  stmts.listProjects = db.prepare(`SELECT id, name, color, created_at FROM projects ORDER BY created_at ASC`);
+  stmts.createProject = db.prepare(`INSERT INTO projects (name, color) VALUES (@name, @color)`);
+  stmts.setNoteProject = db.prepare(`UPDATE notes SET project_id = @project_id WHERE id = @note_id`);
 }
 
 function startSession({ sessionUuid, phase, startedAt, plannedMs, cycleIndex }) {
@@ -275,6 +350,10 @@ function listNotes() {
         title: r.note_title,
         bodyMd: r.note_body_md,
         updatedAt: r.note_updated_at,
+        timeMs: r.note_time_ms || 0,
+        projectId: r.note_project_id || null,
+        projectName: r.project_name || null,
+        projectColor: r.project_color || null,
         tasks: [],
       });
     }
@@ -284,6 +363,8 @@ function listNotes() {
         text: r.task_text,
         done: r.task_done === 1,
         sortOrder: r.task_sort_order,
+        taskType: r.task_task_type || 'task',
+        timeMs: r.task_time_ms || 0,
       });
     }
   }
@@ -304,11 +385,15 @@ function createNote({ title, bodyMd = '' }) {
     title,
     bodyMd,
     updatedAt: now,
+    timeMs: 0,
+    projectId: null,
+    projectName: null,
+    projectColor: null,
     tasks: [],
   };
 }
 
-function createTask({ noteId, text }) {
+function createTask({ noteId, text, taskType = 'task' }) {
   if (!stmts.createTask) prepStmts();
   const now = Date.now();
   const nextSort = db.prepare(`SELECT COALESCE(MAX(sort_order), -1) + 1 AS next FROM note_tasks WHERE note_id = ?`).get(noteId);
@@ -316,6 +401,7 @@ function createTask({ noteId, text }) {
     note_id: noteId,
     text,
     sort_order: nextSort.next,
+    task_type: taskType === 'text' ? 'text' : 'task',
     updated_at: now,
   });
   db.prepare(`UPDATE notes SET updated_at = ? WHERE id = ?`).run(now, noteId);
@@ -324,6 +410,7 @@ function createTask({ noteId, text }) {
     noteId,
     text,
     done: false,
+    taskType: taskType === 'text' ? 'text' : 'task',
     sortOrder: nextSort.next,
     updatedAt: now,
   };
@@ -338,6 +425,52 @@ function toggleTask({ taskId, done }) {
     updated_at: now,
   }).changes;
   return { changes, updatedAt: now };
+}
+
+function addTimeToTask({ taskId, ms }) {
+  if (!stmts.addTimeToTask) prepStmts();
+  return stmts.addTimeToTask.run({ task_id: taskId, ms }).changes;
+}
+
+function addTimeToNote({ noteId, ms }) {
+  if (!stmts.addTimeToNote) prepStmts();
+  return stmts.addTimeToNote.run({ note_id: noteId, ms }).changes;
+}
+
+function updateTaskText({ taskId, text }) {
+  if (!stmts.updateTaskText) prepStmts();
+  return stmts.updateTaskText.run({ task_id: taskId, text, now: Date.now() }).changes;
+}
+
+function updateNoteTitle({ noteId, title }) {
+  if (!stmts.updateNoteTitle) prepStmts();
+  return stmts.updateNoteTitle.run({ note_id: noteId, title, now: Date.now() }).changes;
+}
+
+function listProjects() {
+  if (!stmts.listProjects) prepStmts();
+  return stmts.listProjects.all();
+}
+
+function createProject({ name, color }) {
+  if (!stmts.createProject) prepStmts();
+  const result = stmts.createProject.run({ name, color });
+  return { id: result.lastInsertRowid, name, color, createdAt: Date.now() };
+}
+
+function setNoteProject({ noteId, projectId }) {
+  if (!stmts.setNoteProject) prepStmts();
+  return stmts.setNoteProject.run({ note_id: noteId, project_id: projectId ?? null }).changes;
+}
+
+function deleteNote(noteId) {
+  if (!stmts.deleteNote) prepStmts();
+  return stmts.deleteNote.run(noteId).changes;
+}
+
+function deleteTask(taskId) {
+  if (!stmts.deleteTask) prepStmts();
+  return stmts.deleteTask.run(taskId).changes;
 }
 
 function close() {
@@ -359,5 +492,14 @@ module.exports = {
   createNote,
   createTask,
   toggleTask,
+  deleteNote,
+  deleteTask,
+  addTimeToTask,
+  addTimeToNote,
+  updateTaskText,
+  updateNoteTitle,
+  listProjects,
+  createProject,
+  setNoteProject,
   close,
 };

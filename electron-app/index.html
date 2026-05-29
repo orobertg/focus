@@ -62,11 +62,18 @@
 
     <!-- Bottom Controls -->
     <div class="bottom-controls">
-      <!-- Reset/Restart Button (Left) -->
-      <button class="control-btn control-btn-small" id="reset-btn" title="Reset">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="23 4 23 10 17 10"/>
-          <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      <!-- Restart Button -->
+      <button class="control-btn control-btn-small" id="reset-btn" title="Restart">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="1 4 1 10 7 10"/>
+          <path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+        </svg>
+      </button>
+
+      <!-- Stop Button -->
+      <button class="control-btn control-btn-small" id="stop-btn" title="Stop">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="4" width="16" height="16" rx="2"/>
         </svg>
       </button>
 
@@ -75,7 +82,18 @@
         START
       </button>
 
-      <!-- Settings Button (Right) -->
+      <!-- Extend +5 Button -->
+      <button class="control-btn control-btn-small" id="extend-btn" title="Add 5 minutes">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="13" r="8"/>
+          <polyline points="12 9 12 13 14.5 15.5"/>
+          <line x1="9" y1="1" x2="15" y2="1"/>
+          <line x1="18" y1="3" x2="21" y2="1"/>
+          <line x1="12" y1="1" x2="12" y2="4"/>
+        </svg>
+      </button>
+
+      <!-- Settings Button -->
       <button class="control-btn control-btn-small" id="settings-btn" title="Settings">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="3"></circle>

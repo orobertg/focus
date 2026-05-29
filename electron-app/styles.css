@@ -249,7 +249,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 7px;
   z-index: 2;
   -webkit-app-region: no-drag;
 }
@@ -265,7 +265,7 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   font-family: inherit;
-  -webkit-app-region: no-drag; /* Don't drag when clicking buttons */
+  -webkit-app-region: no-drag;
   pointer-events: auto;
 }
 
@@ -278,28 +278,28 @@ body {
   transform: translateY(0);
 }
 
-/* Small Buttons (Reset & Settings) */
+/* Small Buttons */
 .control-btn-small {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   padding: 0;
 }
 
 .control-btn-small svg {
-  width: 18px;
-  height: 18px;
+  width: 15px;
+  height: 15px;
 }
 
 /* Primary Button (START/PAUSE) */
 .control-btn-primary {
-  width: 140px;
-  height: 48px;
-  border-radius: 24px;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  padding: 0 20px;
+  width: 72px;
+  height: 36px;
+  border-radius: 18px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 0;
   background: rgba(255, 255, 255, 0.15);
 }
 

@@ -8,20 +8,6 @@
 <body>
   <div class="toolbar-shell">
     <div class="toolbar" id="toolbar">
-      <button class="toolbar-btn" id="toolbar-play-btn" title="Play/Pause">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polygon points="5 3 19 12 5 21 5 3"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn" id="toolbar-stop-btn" title="Stop">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="6" y="6" width="12" height="12"/>
-        </svg>
-      </button>
-      <button class="toolbar-btn toolbar-extend" id="toolbar-extend-btn" title="Extend +5 minutes">+5</button>
-      <div class="toolbar-spacer"></div>
-      <button class="toolbar-btn toolbar-preset" id="toolbar-preset-25" title="25/5 (Classic Pomodoro)">25/5</button>
-      <button class="toolbar-btn toolbar-preset" id="toolbar-preset-50" title="50/10 (Extended Focus)">50/10</button>
       <div class="toolbar-spacer"></div>
       <button class="toolbar-btn" id="toolbar-settings-btn" title="Settings">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -41,11 +27,28 @@
     </div>
 
     <div class="toolbar-notes-panel" id="toolbar-notes-panel">
-      <div class="toolbar-notes-add">
-        <input id="toolbar-note-input" type="text" placeholder="+ New note" />
-        <button class="toolbar-notes-add-btn" id="toolbar-note-add-btn">Add</button>
+      <div class="project-filter-row" id="project-filter-row" style="display:none"></div>
+      <div class="notes-timeline">
+        <div class="timeline-add-entry">
+          <button class="timeline-add-dot" id="add-note-dot" title="New note">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+              <line x1="5" y1="1.5" x2="5" y2="8.5"/>
+              <line x1="1.5" y1="5" x2="8.5" y2="5"/>
+            </svg>
+          </button>
+          <div class="timeline-add-form" id="timeline-add-form">
+            <input id="toolbar-note-input" type="text" placeholder="New note..." autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+        <div id="toolbar-notes-list" class="timeline-list"></div>
       </div>
-      <div class="toolbar-notes-list" id="toolbar-notes-list"></div>
+      <div class="project-picker" id="project-picker">
+        <div class="proj-pick-list" id="proj-pick-list"></div>
+        <div class="proj-pick-new-row">
+          <input id="proj-pick-input" type="text" placeholder="+ New project…" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+      <div class="notes-resize-handle" id="notes-resize-handle"></div>
     </div>
   </div>
 
