@@ -1,551 +1,273 @@
-# Focus 🎯
+# Focus
 
 > A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
 
-[![Version](https://img.shields.io/badge/version-0.1.5-blue)]()
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-brightgreen)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 [![Electron](https://img.shields.io/badge/electron-38.2.2-blue)]()
 
 ---
 
-## ✨ What Makes Focus Special?
+## What Makes Focus Special?
 
-**Focus** is a Pomodoro timer that stays visible but never gets in your way. Work with your apps and run the timer while keeping track of your productivity using just the keyboard. Simple and un-obtrusive.
+**Focus** is a Pomodoro timer that stays visible but never gets in your way. Work with your apps and run the timer while keeping track of your productivity using just the keyboard. Simple and unobtrusive.
 
 ### Key Features
 
-- 🪟 **Click-Through Mode** — Click through the timer to apps behind it
-- ⏱️ **Pomodoro Technique** — 25-min focus sessions with automatic breaks
-- 🎨 **Beautiful UI** — Minimal, elegant timer with progress visualization
-- 🔔 **Smart Notifications** — Sound alerts + desktop notifications
-- ⌨️ **Global Hotkeys** — Control from anywhere (ALT+SHIFT+P/C/O)
-- 💾 **Auto-Save Settings** — Remembers position, duration, preferences
-- 🎯 **Timer Presets** — Quick 25/5 or 50/10 timers
-- ⚙️ **Fully Customizable** — Adjust work/break durations, sounds, behavior
+- **Click-Through Mode** — Click through the timer to apps behind it
+- **Pomodoro Technique** — 25-min focus sessions with automatic breaks
+- **Session History** — SQLite-backed tracking of every focus session
+- **Stats Dashboard** — Today's focus time, streak, and 7-day chart
+- **Session Recovery** — Detects unfinished sessions after a crash
+- **Smart Notifications** — Sound alerts + desktop notifications
+- **Global Hotkeys** — Control from anywhere (ALT+SHIFT+P/C/O)
+- **Auto-Save Settings** — Remembers position, duration, preferences
+- **Timer Presets** — Quick 25/5 or 50/10 timers
+- **Fully Customizable** — Adjust work/break durations, sounds, behavior
 
 ---
 
-## 🖥️ Platform Support
+## Platform Support
 
 | Platform | Status | Formats Available |
 |----------|--------|-------------------|
-| 🪟 **Windows** | ✅ **Available** | Installer (NSIS), Portable EXE |
-| 🐧 **Linux** | ✅ **Available** | AppImage, DEB, RPM |
-| 🍎 **macOS** | ✅ **Available** | DMG, ZIP (Intel & Apple Silicon) |
+| **Windows** | Available | Installer (NSIS), Portable EXE |
+| **Linux** | Available | AppImage, DEB, RPM |
+| **macOS** | Available | DMG, ZIP (Intel & Apple Silicon) |
 
 ---
 
-## 📥 Download & Installation
+## Download & Installation
 
-### 🪟 Windows
+**[Download Latest Release](https://github.com/orobertg/focus/releases/latest)**
 
-**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
+### Windows
 
-**Choose your version:**
-- **Focus-0.1.5-Setup.exe** — Full installer with shortcuts
-  - Double-click to install
-  - Creates desktop and Start Menu shortcuts
-  - Includes clean uninstaller
-  
-- **Focus-0.1.5-Portable.exe** — No installation required
-  - Run directly from any folder
-  - Perfect for USB drives
-  - Settings saved in AppData
+- **Focus-0.2.0-Setup.exe** — Full installer with shortcuts and uninstaller
+- **Focus-0.2.0-Portable.exe** — No installation required; run from any folder
 
-### 🐧 Linux
+### Linux
 
-**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
+- **Focus-0.2.0-x86_64.AppImage** — Portable, works on most distros
+  ```bash
+  chmod +x Focus-0.2.0-x86_64.AppImage
+  ./Focus-0.2.0-x86_64.AppImage
+  ```
+- **Focus-0.2.0-amd64.deb** — Debian/Ubuntu: `sudo dpkg -i Focus-0.2.0-amd64.deb`
+- **Focus-0.2.0-x86_64.rpm** — Fedora/RedHat: `sudo rpm -i Focus-0.2.0-x86_64.rpm`
 
-**Choose your version:**
+### macOS
 
-- **Focus-0.1.5-x86_64.AppImage** — Portable, works on most distros
-  - Make executable: `chmod +x Focus-0.1.5-x86_64.AppImage`
-  - Run directly: `./Focus-0.1.5-x86_64.AppImage`
-  - No installation needed, runs from any location
-  - Compatible with: Ubuntu, Fedora, Debian, Arch, and more
+- **Focus-0.2.0-x64.dmg** — Intel Macs
+- **Focus-0.2.0-arm64.dmg** — Apple Silicon (M1/M2/M3)
 
-- **Focus-0.1.5-amd64.deb** — Debian/Ubuntu installer
-  - Install: `sudo dpkg -i Focus-0.1.5-amd64.deb`
-  - Or double-click in file manager
-  - For Ubuntu, Debian, Linux Mint, Pop!_OS, etc.
-  - Creates menu entry and shortcuts
-
-- **Focus-0.1.5-x86_64.rpm** — Fedora/RedHat installer
-  - Install: `sudo rpm -i Focus-0.1.5-x86_64.rpm`
-  - Or: `sudo dnf install Focus-0.1.5-x86_64.rpm`
-  - For Fedora, RHEL, CentOS, openSUSE, etc.
-  - Creates menu entry and shortcuts
-
-### 🍎 macOS
-
-**✅ Available Now** — [Download Latest Release](https://github.com/orobertg/focus/releases/latest)
-
-**Choose your version:**
-
-- **Focus-0.1.5-x64.dmg** — For Intel Macs
-  - Double-click to open
-  - Drag Focus.app to Applications folder
-  - Right-click → Open on first launch (apps are unsigned)
-
-- **Focus-0.1.5-arm64.dmg** — For Apple Silicon Macs (M1, M2, M3)
-  - Double-click to open
-  - Drag Focus.app to Applications folder
-  - Right-click → Open on first launch (apps are unsigned)
-
-**Alternative:** ZIP versions also available for both architectures
-
-**Note:** Apps are unsigned. On first launch:
-1. Right-click (or Control-click) the app
-2. Select "Open"
-3. Click "Open" in the security dialog
-4. Only needed once - future launches work normally
+Apps are unsigned. On first launch: right-click → Open → Open. Only needed once.
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### First Launch
+1. Install/run Focus using one of the installers above
+2. Timer appears at last saved position (or center of screen)
+3. Toolbar appears with controls
+4. System tray icon appears in taskbar
 
-1. **Install/Run Focus** using one of the installers above
-2. **Timer appears** at the last saved position (or center of screen)
-3. **Toolbar appears** with controls
-4. **System tray icon** shows in taskbar
+**To quit:** right-click the system tray icon → "Quit Focus App". Closing the window only hides it.
 
-**Linux users:** 
-- GNOME desktop? You may need to install the AppIndicator extension for the system tray icon
-- Using Wayland? Some features work best on X11 (see [Troubleshooting](#-troubleshooting))
+### Basic Controls
 
-### Quitting the App
+| Action | How |
+|--------|-----|
+| Start/pause | Click play button on toolbar |
+| Reset | Click stop button on toolbar |
+| Extend +5 min | Click "+5" on toolbar |
+| Quick preset | Click "25/5" or "50/10" on toolbar |
+| Toggle visibility | ALT+SHIFT+P |
+| Toggle click-through | ALT+SHIFT+C |
+| Open settings | ALT+SHIFT+O or click gear icon |
 
-**To quit Focus completely:**
-- Right-click the **system tray icon** (bottom-right on Windows, top-right on Linux)
-- Select **"Quit Focus App"**
-- App will cleanly exit with all resources properly released
+### Settings Tabs
 
-**Note:** Closing the timer window just hides it. The app continues running in the system tray.
-
-### Basic Usage
-
-1. **Start timer:** Click ▶ play button or press ALT+SHIFT+P
-2. **Pause timer:** Click ⏸ pause button
-3. **Reset timer:** Click ■ stop button
-4. **Extend session:** Click "+5" to add 5 minutes
-5. **Quick preset:** Click "25/5" or "50/10" for instant setup
-
-### Settings
-
-**Open settings:** Click ⚙ gear icon or press **ALT+SHIFT+O**
-
-**Three tabs:**
-- **DURATION** — Adjust work/break times with sliders
+- **DURATION** — Adjust work/break times
 - **OPTIONS** — Auto-start breaks/pomodoros, always-on-top
-- **NOTIFICATIONS** — Enable/disable sounds and desktop alerts
-
-### Global Hotkeys
-
-- **ALT+SHIFT+P** — Show/hide windows
-- **ALT+SHIFT+C** — Toggle click-through mode
-- **ALT+SHIFT+O** — Open settings
-
-### Click-Through Mode
-
-**What is it?**  
-Click-through mode makes the timer "transparent" to mouse clicks, letting you interact with windows behind it.
-
-**How to use:**
-1. Press **ALT+SHIFT+C** to enable
-2. Timer stays visible but you can click through it
-3. Press **ALT+SHIFT+C** again to disable
-
-**Perfect for:**
-- Keeping timer visible while coding
-- Monitoring time during video calls
-- Staying focused during research/reading
+- **ALERTS** — Sound and desktop notification toggles
+- **STATS** — Today's focus time, streak, 7-day bar chart
 
 ---
 
-## 🎯 How It Works
+## How It Works
 
-### The Pomodoro Technique
+### Pomodoro Flow
 
-Focus implements the classic Pomodoro Technique:
-
-1. **Work Session** (25 min default) — Focus on a single task
-2. **Short Break** (5 min) — Relax, stretch, hydrate
-3. **Repeat 4 times** — Build momentum with breaks
-4. **Long Break** (15 min) — Longer rest after 4 cycles
-5. **Reflection** — Review your accomplishments
+1. **Work session** (25 min default) — Focus on a single task
+2. **Short break** (5 min) — Relax, stretch, hydrate
+3. Repeat 4 times
+4. **Long break** (15 min) — Longer rest after 4 cycles
+5. **Reflection period** — Mandatory 10-minute review before starting again
 
 ### Visual Progress
 
-- **Progress Ring** — Circular timer shows remaining time
-- **Progress Dots** — Track completed Pomodoros (4 dots)
-  - Gray = Not started
-  - Yellow = Break in progress
-  - Green = Completed
-- **Phase Icons** — Eye (focus) or Coffee (break)
-- **Celebration** — Blue star when all 4 cycles complete
+- **Progress ring** — Shows time remaining as a circular stroke
+- **Progress dots** — 4 dots per cycle: gray → yellow (break in progress) → green (complete)
+- **Phase icons** — Eye (focus), coffee mug (break), star (reflection complete)
+
+### Stats & History (v0.2.0)
+
+Focus now records every session to a local SQLite database at:
+- Windows: `%APPDATA%\Focus\focus.db`
+- macOS: `~/Library/Application Support/Focus/focus.db`
+- Linux: `~/.config/Focus/focus.db`
+
+The **STATS** tab in settings shows:
+- Today's total focus time and pomodoro count
+- Current daily streak
+- 7-day bar chart (today = red, prior days = amber)
+
+If Focus exits mid-session (crash or force-quit), it will prompt on next startup to keep the partial session as completed or discard it.
 
 ---
 
-## ⚙️ Settings & Customization
-
-### Timer Durations
-- **Work Session:** 1-120 minutes (default: 25)
-- **Short Break:** 1-30 minutes (default: 5)
-- **Long Break:** 5-60 minutes (default: 15)
-- **Cycle Length:** 1-10 Pomodoros (default: 4)
-
-### Behavior Options
-- **Auto-start Breaks** — Automatically start break timer after work
-- **Auto-start Pomodoros** — Automatically start next work session after break
-- **Always on Top** — Keep timer above all windows (default: off)
-
-### Notifications
-- **Sound Notifications** — Pleasant audio tones for phase transitions
-  - Test sound button included
-  - Work complete: 880 Hz (A5 note)
-  - Break complete: 659 Hz (E5 note)
-  - Long break: Two-tone sequence
-- **Desktop Notifications** — Windows toast notifications
-  - "Focus Session Complete! Time for a break."
-  - "Break Complete! Ready to get back to work?"
-  - "All 4 Pomodoros Complete! Time to reflect!"
-
----
-
-## 🛠️ Development
+## Development
 
 ### Prerequisites
 
-- **Node.js** 18+ (LTS recommended)
-- **npm** or **yarn**
-- **Platform-specific:**
-  - **Windows** for Windows builds
-  - **macOS** for macOS builds
-  - **Linux** (or WSL on Windows) for Linux builds
-  - For rpm packages on Ubuntu/Debian: `sudo apt install rpm`
+- Node.js 18+ (LTS)
+- npm
+- Platform tools for native modules: `npm run rebuild` handles this automatically
 
 ### Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/go-robert/focus.git
+git clone https://github.com/orobertg/focus.git
 cd focus/electron-app
-
-# Install dependencies
-npm install
-
-# Run in development mode (with DevTools)
-npm start
-
-# Run in production mode (no DevTools)
-npm run start:prod
+npm install        # installs deps and rebuilds better-sqlite3 for Electron
+npm start          # dev mode (DevTools open)
+npm run start:prod # production mode
 ```
 
 ### Building
 
-#### Automated Builds (Recommended)
-
-**GitHub Actions builds all platforms automatically:**
-- Push to `main` → Builds run automatically
-- Tag a release → Creates release with all packages
-- No local Mac needed for macOS builds!
-
-See [GitHub Actions Setup Guide](docs/GITHUB_ACTIONS_SETUP.md) for details.
-
-#### Manual Builds (Local)
-
 ```bash
-# Build Windows installer + portable
-npm run build:win
-
-# Build macOS installers (requires macOS)
-npm run build:mac
-
-# Build Linux packages (requires Linux or WSL)
-npm run build:linux
-
-# Build all platforms (if on appropriate OS)
-npm run build:all
+npm run build:win    # Windows installer + portable
+npm run build:mac    # macOS DMG + ZIP (requires macOS)
+npm run build:linux  # AppImage + deb + rpm (requires Linux or WSL)
 ```
 
-**Output:** `electron-app/dist/`
+Output goes to `electron-app/dist/`.
 
-**Linux builds on Windows:**
-- Use WSL (Windows Subsystem for Linux)
-- Install Node.js in WSL
-- Run `npm run build:linux` from WSL terminal
+GitHub Actions builds all platforms automatically on push to `main`.
 
 ### Project Structure
 
 ```
-focus/
-├── electron-app/           # Main application
-│   ├── main.js            # Electron main process
-│   ├── renderer.js        # Timer logic & UI
-│   ├── toolbar.js         # Toolbar window
-│   ├── index.html         # Timer window
-│   ├── toolbar.html       # Toolbar window
-│   ├── styles.css         # Styling
-│   ├── core_stub.js       # Timer engine (JS)
-│   ├── assets/            # Icons and resources
-│   └── package.json       # Dependencies & build config
-├── docs/                  # Documentation
-└── README.md             # This file
+focus_app/
+├── electron-app/
+│   ├── main.js        — Main process (windows, IPC, tray, DB init)
+│   ├── db.js          — SQLite module (schema, sessions, stats)
+│   ├── core_stub.js   — Timer engine (JS; Rust integration planned)
+│   ├── renderer.js    — Timer logic, session recording, stats UI
+│   ├── index.html     — Timer bubble + inline settings panel
+│   ├── styles.css     — All UI styles
+│   ├── toolbar.*      — Independent toolbar window
+│   ├── assets/icons/  — App icons
+│   └── package.json
+└── docs/              — Specifications, milestones, session notes
 ```
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Windows
+### Timer not visible
+Press **ALT+SHIFT+P** or right-click the tray icon → Show/Hide.
 
-**Timer not visible**
-- Press **ALT+SHIFT+P** to toggle visibility
-- Check system tray → Right-click Focus icon → "Show/Hide"
+### Windows SmartScreen warning
+App is unsigned. Click "More info" → "Run anyway". Code is open source.
 
-**System tray icon not appearing (Windows)**
-- This has been fixed in v0.1.5+
-- Upgrade to latest version if you're experiencing this issue
-- App requires system tray to function properly
+### macOS security warning
+Right-click → Open → Open. Only required on first launch.
 
-**How to quit the app**
-- Right-click system tray icon → "Quit Focus App"
-- Don't just close the window (app stays in tray)
-- For frozen app: Task Manager → End "Focus.exe" process
+### Linux: AppImage won't run
+```bash
+chmod +x Focus-*.AppImage
+sudo apt install fuse libfuse2  # Ubuntu/Debian if FUSE is missing
+```
 
-**Multiple instances running**
-- Only one Focus instance can run at a time
-- If you see "Another instance is already running" error:
-  - Right-click tray icon → Quit
-  - Or: Task Manager → End "Focus.exe" processes
-  - Then restart the app
+### Linux: system tray icon missing (GNOME)
+```bash
+sudo apt install gnome-shell-extension-appindicator
+```
+Then enable the extension in the GNOME Extensions app.
 
-**Settings not saving**
-- Settings are stored in: `%APPDATA%\focus\config.json`
-- If issues persist, delete this file and restart
+### Linux: hotkeys not working
+Hotkeys work best on X11. On Wayland, compositor restrictions may apply.
 
-**Click-through not working**
-- Press **ALT+SHIFT+C** to toggle
-- Restart the app if issue persists
+### Settings not saving
+Settings are stored in electron-store. Config location:
+- Windows: `%APPDATA%\focus\config.json`
+- Linux: `~/.config/focus/config.json`
 
-**Windows SmartScreen warning**
-- App is unsigned (no code signing certificate yet)
-- Click "More info" → "Run anyway"
-- This is safe - code is open source
-
-### Linux
-
-**AppImage won't run**
-- Make it executable: `chmod +x Focus-0.1.5-x86_64.AppImage`
-- Install FUSE if needed: `sudo apt install fuse libfuse2` (Ubuntu/Debian)
-- Or: `sudo dnf install fuse fuse-libs` (Fedora)
-
-**Global hotkeys not working**
-- Hotkeys work best on X11 sessions
-- On Wayland, some hotkeys may be restricted by the compositor
-- Try switching to X11 session (logout → select session at login)
-
-**Click-through mode not working**
-- Click-through has limited support on Wayland
-- Works best on X11 sessions
-- KDE Plasma: Full support
-- GNOME: Partial support
-- Other DEs: May vary
-
-**System tray icon missing**
-- GNOME users: Install `gnome-shell-extension-appindicator`
-  ```bash
-  sudo apt install gnome-shell-extension-appindicator
-  ```
-- Enable the extension in GNOME Extensions app
-- KDE Plasma: Works out of the box
-
-**Settings not saving**
-- Settings are stored in: `~/.config/focus/config.json`
-- Ensure the directory has write permissions
-- If issues persist, delete this file and restart
-
-**deb/rpm package conflicts**
-- If you see dependency errors, try:
-  ```bash
-  # Debian/Ubuntu
-  sudo apt --fix-broken install
-  
-  # Fedora
-  sudo dnf install --allowerasing focus
-  ```
-
-### macOS
-
-**"App can't be opened" security warning**
-- Apps are unsigned (no Apple Developer certificate yet)
-- Solution:
-  1. Right-click (or Control-click) on Focus.app
-  2. Select "Open" from the menu
-  3. Click "Open" in the security dialog
-  4. Only needed once, future launches work normally
-
-**System tray icon missing**
-- macOS shows tray icons in the menu bar (top-right)
-- Focus icon should appear automatically
-- If missing, check System Preferences → Dock & Menu Bar
-
-**Keyboard shortcuts not working**
-- macOS may require accessibility permissions
-- System Preferences → Security & Privacy → Accessibility
-- Add Focus to the allowed apps list
+### Multiple instances
+Only one instance runs at a time. If you see the "already running" dialog, right-click the tray → Quit, then restart.
 
 ---
 
-## 📝 Changelog
+## Changelog
 
-### v0.1.5 (October 13, 2025) - System Tray Fix & Cross-Platform Release
+### v0.2.0 (May 11, 2026) — Session History & Stats
 
-**Critical Bug Fixes:**
-- ✅ Fixed system tray icon not appearing in packaged Windows builds
-- ✅ Icons now properly packaged via extraResources
-- ✅ Clean quit functionality accessible from system tray
+- Added SQLite session history (`better-sqlite3`, WAL mode, schema migrations)
+- Session recovery on startup: detects crash-interrupted sessions and prompts to keep or discard
+- Stats tab in settings panel: today's focus time, pomodoro count, streak, 7-day bar chart
+- Session lifecycle instrumentation: every work/break start, completion, and reset is recorded
+- Added `@electron/rebuild` + `postinstall` script for native module compatibility
 
-**New Features:**
-- ✅ Reflection period countdown timer (10:00 → 00:00)
-- ✅ Knight Rider-style sequential blue dot animation
-- ✅ GitHub Actions automated builds for all platforms
+### v0.1.6 (October 2025) — Build Fix
 
-**Platform Support:**
-- ✅ Windows (Setup + Portable)
-- ✅ Linux (AppImage, deb, rpm)
-- ✅ macOS (DMG for Intel and Apple Silicon)
+- CI/release pipeline fixes
 
-### v0.1.0 (October 13, 2025) - Initial Release
+### v0.1.5 (October 2025) — System Tray Fix & Cross-Platform
 
-**Core Features:**
-- ✅ Full Pomodoro timer implementation
-- ✅ Click-through window functionality
-- ✅ Beautiful timer UI with progress visualization
-- ✅ Independent draggable toolbar
-- ✅ Settings panel with 3 tabs
-- ✅ Timer presets (25/5, 50/10)
-- ✅ Extend +5 button
+- Fixed system tray icon not appearing in packaged Windows builds
+- Reflection period countdown timer and Knight Rider dot animation
+- GitHub Actions automated builds for Windows, Linux, macOS
 
-**Notifications:**
-- ✅ Sound notifications (Web Audio API)
-- ✅ Desktop notifications (Windows toasts)
-- ✅ Test sound button in settings
+### v0.1.0 (October 2025) — Initial Release
 
-**System Integration:**
-- ✅ Global hotkeys (ALT+SHIFT+P/C/O)
-- ✅ System tray icon
-- ✅ Position persistence
-- ✅ Single instance enforcement
-
-**Distribution:**
-- ✅ Windows NSIS installer
-- ✅ Windows portable executable
-- ✅ Linux AppImage (portable)
-- ✅ Linux deb package (Debian/Ubuntu)
-- ✅ Linux rpm package (Fedora/RedHat)
-- ✅ Auto-save settings
-- ✅ Clean uninstaller
-
-**Known Limitations:**
-- macOS apps are unsigned (requires right-click → Open on first launch)
+- Full Pomodoro timer with click-through window
+- Independent draggable toolbar
+- Settings panel (Duration / Options / Notifications)
+- Timer presets (25/5, 50/10), Extend +5
+- Sound notifications (Web Audio API) and desktop toasts
+- Global hotkeys, system tray, position persistence, single instance lock
+- Windows installer + portable; Linux AppImage/deb/rpm; macOS DMG
 
 ---
 
-## 🗺️ Roadmap
+## Roadmap
 
-### Future Features (Not in v0.1.0)
-
-**Database & History**
-- [ ] SQLite session tracking
-- [ ] Statistics dashboard
-- [ ] Focus time analytics
-- [ ] Session recovery after restart
-
-**Native Performance**
-- [ ] Rust core integration (neon-bindings)
-- [ ] Monotonic clock for accuracy
-- [ ] Reduced CPU usage
-
-**Advanced Features**
-- [ ] Notes capture with screenshots
-- [ ] Multiple timer profiles
-- [ ] Custom themes (dark/light)
-- [ ] Auto-start on system boot
-
-**Distribution**
-- [x] Linux packages (AppImage, deb, rpm) ✅
-- [ ] Linux package repositories (PPA, AUR, Flathub)
-- [ ] macOS code signing
-- [ ] macOS App Store distribution
-- [ ] Microsoft Store distribution
-- [ ] Auto-update mechanism
+- **v0.3.0** — Rust core via neon-bindings (replace JS timer stub)
+- **v0.4.0** — Notes capture with screenshot attach, themes, keyboard shortcuts
+- **v1.0.0** — Code signing, auto-update, Microsoft/Mac App Store
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
-Contributions are welcome! Here's how you can help:
-
-1. **Report bugs** — Open an issue with reproduction steps (especially on Linux!)
-2. **Suggest features** — Share your ideas in discussions
-3. **Submit PRs** — Fork, create a branch, and submit a pull request
-4. **Improve docs** — Help make documentation clearer
-5. **Test on Linux** — Try different distros and desktop environments
-6. **Build macOS version** — Help us create and test macOS builds
-
-**Special needs:**
-- Linux testers on various distros (Ubuntu, Fedora, Arch, etc.)
-- Testing on Wayland vs X11
-- macOS developers to help with Mac builds
+1. Report bugs — open an issue with reproduction steps
+2. Suggest features — share ideas in discussions
+3. Submit PRs — fork, branch, and pull request
+4. Test on Linux — various distros and desktop environments welcome
 
 ---
 
-## 📄 License
+## License
 
-MIT License - see [LICENSE](LICENSE) file for details.
-
----
-
-## 🙏 Acknowledgments
-
-### Technologies Used
-- **Electron** — Cross-platform desktop framework
-- **electron-builder** — Distribution packaging
-- **electron-store** — Settings persistence
-- **Web Audio API** — Sound notifications
-- **HTML5 Notifications** — Desktop alerts
-
-### Inspiration
-- **Pomodoro Technique** by Francesco Cirillo
-- **Flow Timer** and similar minimal timer apps
-- Community feedback and feature requests
+MIT — see [LICENSE](LICENSE).
 
 ---
 
-## 📞 Support
+**Built with focus, for focus.**
 
-- **Issues:** [GitHub Issues](https://github.com/go-robert/focus/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/go-robert/focus/discussions)
-- **Website:** [github.com/go-robert/focus](https://github.com/go-robert/focus)
-
----
-
-## ⭐ Star This Project
-
-If you find Focus useful, please consider:
-- ⭐ Starring the repository
-- 📢 Sharing with friends and colleagues
-- 💬 Leaving feedback in discussions
-- 🐛 Reporting bugs to help improve the app
-
----
-
-**Built with focus, for focus.** 🎯
-
-**Version:** 0.1.5  
-**Last Updated:** October 13, 2025  
-**Status:** Production Ready
+**Version:** 0.2.0 | **Last Updated:** May 11, 2026

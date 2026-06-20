@@ -6,202 +6,205 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Container for swipeable panels -->
-  <div class="panels-container" id="panels-container">
-    <!-- Timer Panel -->
-    <div class="panel panel-timer" id="timer-panel">
-      <div class="bubble" id="timer-bubble">
-    <!-- Progress Ring -->
-    <svg class="progress-ring" width="180" height="180">
-      <circle
-        class="progress-ring__circle-bg"
-        stroke="rgba(255, 255, 255, 0.1)"
-        stroke-width="9"
-        fill="transparent"
-        r="75"
-        cx="90"
-        cy="90"
-      />
-      <circle
-        class="progress-ring__circle"
-        stroke="#ef4444"
-        stroke-width="9"
-        fill="transparent"
-        r="75"
-        cx="90"
-        cy="90"
-        id="progress-circle"
-      />
-    </svg>
+  <div class="app" id="app">
 
-    <!-- Timer Content (Inside Progress Ring) -->
-    <div class="timer-content">
-      <!-- Phase Icon -->
-      <div class="phase-icon" id="phase-icon">
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M13.73 4a2 2 0 00-3.46 0l-8 14A2 2 0 004 21h16a2 2 0 001.73-3z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
+    <!-- ===== Timer Section ===== -->
+    <div class="bubble" id="timer-bubble">
+      <div class="window-controls">
+        <button class="win-btn win-minimize" id="win-minimize-btn" title="Minimize">&#8212;</button>
+        <button class="win-btn win-close"    id="win-close-btn"    title="Close">&#215;</button>
       </div>
 
-      <!-- Timer Display -->
-      <div class="timer-display" id="timer-display">25:00</div>
+      <!-- Progress Ring -->
+      <svg class="progress-ring" width="180" height="180">
+        <defs>
+          <filter id="orbit-glow" x="-200%" y="-200%" width="500%" height="500%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur1"/>
+            <feGaussianBlur in="SourceGraphic" stdDeviation="6"   result="blur2"/>
+            <feMerge>
+              <feMergeNode in="blur2"/>
+              <feMergeNode in="blur1"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <!-- Single outer Pomodoro history ring (original ring size) -->
+        <circle cx="90" cy="90" r="75" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="9"/>
+        <g id="pomo-outer-ring"></g>
+        <!-- Inner minute-quarter arcs -->
+        <circle id="mq-track" cx="90" cy="90" r="58" fill="none"
+          stroke="rgba(255,255,255,0.06)" stroke-width="3.5"/>
+        <circle id="mq0" cx="90" cy="90" r="58" fill="none"
+          stroke="#ef4444" stroke-width="3.5" stroke-linecap="butt"
+          stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="mq1" cx="90" cy="90" r="58" fill="none"
+          stroke="#ef4444" stroke-width="3.5" stroke-linecap="butt"
+          stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="mq2" cx="90" cy="90" r="58" fill="none"
+          stroke="#ef4444" stroke-width="3.5" stroke-linecap="butt"
+          stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="mq3" cx="90" cy="90" r="58" fill="none"
+          stroke="#ef4444" stroke-width="3.5" stroke-linecap="butt"
+          stroke-dasharray="0 999" style="opacity:0"/>
+        <!-- Tron light-cycle trail (longest/dimmest → shortest/brightest) -->
+        <circle id="trail-3" cx="90" cy="90" r="58" fill="none" stroke="white" stroke-width="1"   stroke-linecap="butt" stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="trail-2" cx="90" cy="90" r="58" fill="none" stroke="white" stroke-width="1.5" stroke-linecap="butt" stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="trail-1" cx="90" cy="90" r="58" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="butt" stroke-dasharray="0 999" style="opacity:0"/>
+        <circle id="trail-0" cx="90" cy="90" r="58" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="butt" stroke-dasharray="0 999" style="opacity:0"/>
+        <!-- Orbiting second-hand dot (leading head with glow bloom) -->
+        <circle id="orbit-dot" r="3" cx="148" cy="90" fill="white" filter="url(#orbit-glow)" style="opacity:0"/>
+      </svg>
 
-      <!-- Progress Dots -->
-      <div class="progress-dots" id="progress-dots">
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
+      <!-- Timer Content -->
+      <div class="timer-content">
+        <div class="phase-icon" id="phase-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+          </svg>
+        </div>
+        <div class="timer-display" id="timer-display">25:00</div>
+        <div class="progress-dots" id="progress-dots">
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </div>
+        <div class="phase-label" id="phase-label">FOCUS</div>
       </div>
 
-      <!-- Phase Label -->
-      <div class="phase-label" id="phase-label">FOCUS</div>
-    </div>
-
-    <!-- Bottom Controls -->
-    <div class="bottom-controls">
-      <!-- Restart Button -->
-      <button class="control-btn control-btn-small" id="reset-btn" title="Restart">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="1 4 1 10 7 10"/>
-          <path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
-        </svg>
-      </button>
-
-      <!-- Stop Button -->
-      <button class="control-btn control-btn-small" id="stop-btn" title="Stop">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="4" y="4" width="16" height="16" rx="2"/>
-        </svg>
-      </button>
-
-      <!-- START/PAUSE Button (Center) -->
-      <button class="control-btn control-btn-primary" id="start-pause-btn">
-        START
-      </button>
-
-      <!-- Extend +5 Button -->
-      <button class="control-btn control-btn-small" id="extend-btn" title="Add 5 minutes">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="13" r="8"/>
-          <polyline points="12 9 12 13 14.5 15.5"/>
-          <line x1="9" y1="1" x2="15" y2="1"/>
-          <line x1="18" y1="3" x2="21" y2="1"/>
-          <line x1="12" y1="1" x2="12" y2="4"/>
-        </svg>
-      </button>
-
-      <!-- Settings Button -->
-      <button class="control-btn control-btn-small" id="settings-btn" title="Settings">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"></circle>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-        </svg>
-      </button>
-    </div>
+      <!-- Bottom Controls -->
+      <div class="bottom-controls">
+        <button class="control-btn control-btn-small" id="reset-btn" title="Restart">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="round">
+            <polyline points="1 4 1 10 7 10"/>
+            <path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+          </svg>
+        </button>
+        <button class="control-btn control-btn-small" id="stop-btn" title="Stop">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="round">
+            <rect x="4" y="4" width="16" height="16" rx="2"/>
+          </svg>
+        </button>
+        <button class="control-btn control-btn-primary" id="start-pause-btn">START</button>
+        <button class="control-btn control-btn-small" id="extend-btn" title="Add 5 minutes">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="round">
+            <circle cx="12" cy="13" r="8"/>
+            <polyline points="12 9 12 13 14.5 15.5"/>
+            <line x1="9" y1="1" x2="15" y2="1"/>
+            <line x1="18" y1="3" x2="21" y2="1"/>
+            <line x1="12" y1="1" x2="12" y2="4"/>
+          </svg>
+        </button>
+        <button class="control-btn control-btn-small" id="settings-btn" title="Settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
       </div>
     </div>
-    <!-- End Timer Panel -->
+    <!-- /Timer Section -->
 
-    <!-- Settings Panel -->
-    <div class="panel panel-settings" id="settings-panel">
-      <!-- Save/Done Button -->
+    <!-- Divider -->
+    <div class="panel-divider"></div>
+
+    <!-- ===== Notes Section (always visible) ===== -->
+    <div class="notes-section" id="notes-section">
+      <div class="project-filter-row" id="project-filter-row" style="display:none"></div>
+      <div class="notes-timeline">
+        <div class="timeline-add-entry">
+          <button class="timeline-add-dot" id="add-note-dot" title="New note">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="butt">
+              <line x1="5" y1="1.5" x2="5" y2="8.5"/>
+              <line x1="1.5" y1="5" x2="8.5" y2="5"/>
+            </svg>
+          </button>
+          <div class="timeline-add-form" id="timeline-add-form">
+            <input id="note-input" type="text" placeholder="New note..." autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+        <div id="notes-list" class="timeline-list"></div>
+      </div>
+      <div class="project-picker" id="project-picker">
+        <div class="proj-pick-list" id="proj-pick-list"></div>
+        <div class="proj-pick-new-row">
+          <input id="proj-pick-input" type="text" placeholder="+ New project…" autocomplete="off" spellcheck="false" />
+        </div>
+      </div>
+    </div>
+    <!-- /Notes Section -->
+
+    <!-- ===== Settings Overlay (slides up from below) ===== -->
+    <div class="settings-overlay" id="settings-overlay">
       <button class="close-btn" id="close-settings-btn" title="Save & Close" tabindex="-1"
               onclick="window.closeSettings && window.closeSettings(); return false;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="pointer-events: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="butt" stroke-linejoin="round" style="pointer-events:none;">
           <polyline points="20 6 9 17 4 12"/>
         </svg>
       </button>
-      
-      <!-- Tab Navigation -->
+
       <div class="settings-tabs">
         <button class="settings-tab active" data-tab="duration" id="tab-duration" tabindex="-1">DURATION</button>
         <button class="settings-tab" data-tab="options" id="tab-options" tabindex="-1">OPTIONS</button>
         <button class="settings-tab" data-tab="notifications" id="tab-notifications" tabindex="-1">ALERTS</button>
         <button class="settings-tab" data-tab="stats" id="tab-stats" tabindex="-1">STATS</button>
       </div>
-      
-      <!-- Tab Content -->
+
       <div class="settings-content-wrapper">
-        
-        <!-- Duration Tab -->
+
         <div class="settings-tab-content active" id="content-duration">
-          
           <div class="setting-row">
             <span class="setting-label">Focus Session</span>
             <div class="setting-controls">
               <button class="nav-btn" id="work-minutes-prev" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <span class="setting-value"><span id="work-minutes-value">25</span> min</span>
               <button class="nav-btn" id="work-minutes-next" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Short break</span>
             <div class="setting-controls">
               <button class="nav-btn" id="short-break-minutes-prev" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <span class="setting-value"><span id="short-break-minutes-value">05</span> min</span>
               <button class="nav-btn" id="short-break-minutes-next" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Long break</span>
             <div class="setting-controls">
               <button class="nav-btn" id="long-break-minutes-prev" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <span class="setting-value"><span id="long-break-minutes-value">15</span> min</span>
               <button class="nav-btn" id="long-break-minutes-next" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Long break after</span>
             <div class="setting-controls">
               <button class="nav-btn" id="cycle-length-prev" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="15 18 9 12 15 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
               </button>
               <span class="setting-value"><span id="cycle-length-value">4</span> times</span>
               <button class="nav-btn" id="cycle-length-next" tabindex="-1">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="9 18 15 12 9 6"/>
-                </svg>
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </div>
           </div>
-          
         </div>
-        
-        <!-- Options Tab -->
+
         <div class="settings-tab-content" id="content-options">
-          
           <div class="setting-row">
             <span class="setting-label">Sound</span>
             <label class="toggle-switch">
@@ -209,7 +212,6 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Auto-start Breaks</span>
             <label class="toggle-switch">
@@ -217,7 +219,6 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Auto-start Pomodoros</span>
             <label class="toggle-switch">
@@ -225,7 +226,6 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Always on Top</span>
             <label class="toggle-switch">
@@ -233,25 +233,13 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-          
         </div>
-        
-        <!-- Notifications Tab -->
+
         <div class="settings-tab-content" id="content-notifications">
-          
-          <div class="setting-row">
-            <span class="setting-label">Sound Notifications</span>
-            <label class="toggle-switch">
-              <input type="checkbox" id="sound-enabled" checked tabindex="-1">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
-          
-          <div class="setting-row" style="padding-left: 20px; opacity: 0.8;">
+          <div class="setting-row" style="padding-left:0;opacity:0.9;">
             <button class="test-sound-btn" id="test-sound-btn" tabindex="-1">🔊 Test Sound</button>
-            <span style="font-size: 12px; color: #888; margin-left: 10px;">Click to preview notification sound</span>
+            <span style="font-size:12px;color:#888;margin-left:10px;">Click to preview</span>
           </div>
-          
           <div class="setting-row">
             <span class="setting-label">Desktop Notifications</span>
             <label class="toggle-switch">
@@ -259,12 +247,9 @@
               <span class="toggle-slider"></span>
             </label>
           </div>
-
         </div>
 
-        <!-- Stats Tab -->
         <div class="settings-tab-content" id="content-stats">
-
           <div class="stats-summary">
             <div class="stats-block">
               <div class="stats-label">Today</div>
@@ -277,31 +262,14 @@
               <div class="stats-sub" id="stats-streak-sub">days</div>
             </div>
           </div>
-
           <div class="stats-chart-label">Last 7 days</div>
-          <div class="stats-chart" id="stats-chart">
-            <!-- bars injected by renderer -->
-          </div>
-
+          <div class="stats-chart" id="stats-chart"></div>
         </div>
 
       </div>
     </div>
-    <!-- End Settings Panel -->
+    <!-- /Settings Overlay -->
 
-    <!-- Notes Panel -->
-    <div class="panel panel-notes" id="notes-panel">
-      <button class="close-btn" id="close-notes-btn" title="Close Notes" tabindex="-1">✕</button>
-      <div class="notes-header">NOTES</div>
-      <div class="notes-content">
-        <div class="notes-quick-add">
-          <input id="notes-quick-add-input" type="text" placeholder="+ New note" tabindex="-1" />
-          <button id="notes-quick-add-btn" class="test-sound-btn" tabindex="-1">Add</button>
-        </div>
-        <div class="notes-list" id="notes-list"></div>
-      </div>
-    </div>
-    <!-- End Notes Panel -->
   </div>
 
   <script src="renderer.js"></script>

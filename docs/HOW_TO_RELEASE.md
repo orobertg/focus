@@ -48,10 +48,10 @@ git push origin v0.1.0
 **Via GitHub Web Interface:**
 
 1. **Go to your repository** on GitHub
-   - https://github.com/YOUR_USERNAME/focus_app
+   - https://github.com/orobertg/focus_app
 
 2. **Click "Releases"** (right sidebar)
-   - Or go to: https://github.com/YOUR_USERNAME/focus_app/releases
+   - Or go to: https://github.com/orobertg/focus_app/releases
 
 3. **Click "Draft a new release"**
 

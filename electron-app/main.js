@@ -59,7 +59,6 @@ if (!gotTheLock) {
 }
 
 let mainWindow;
-let toolbarWindow;
 let settingsWindow;
 let tray;
 let clickThroughEnabled = false; // Start with click-through DISABLED for full interactivity
@@ -67,8 +66,6 @@ let currentSettings = null; // Store current settings including alwaysOnTop
 let isDocked = false; // Track if window is docked
 let dockedEdge = null; // Track which edge: 'top', 'bottom', 'left', 'right'
 let isCollapsed = false; // Track if window is collapsed when docked
-const TOOLBAR_COLLAPSED_HEIGHT = 52;
-const TOOLBAR_NOTES_HEIGHT = 320;
 
 /* ============================================
    Window Creation
@@ -91,8 +88,8 @@ function createWindow() {
   currentSettings = settings;
   
   const windowOptions = {
-    width: 280,
-    height: 340, // Increased to fit settings panel without scrollbar
+    width: 300,
+    height: 560,
     frame: false,
     transparent: false, // Solid window, no transparency
     alwaysOnTop: settings.alwaysOnTop === true, // Respect user setting
@@ -161,73 +158,8 @@ function createWindow() {
   });
 
   console.log('[Electron] Window created successfully');
-  
-  // Create toolbar window
-  createToolbarWindow();
 }
 
-function createToolbarWindow() {
-  console.log('[Electron] Creating toolbar window...');
-  
-  // Load saved toolbar position or calculate default (above main window)
-  const savedToolbarPosition = store.get('toolbarPosition', { x: null, y: null });
-  const toolbarOptions = {
-    width: 320,
-    height: 52,
-    frame: false,
-    transparent: false, // Solid window, no transparency
-    alwaysOnTop: currentSettings?.alwaysOnTop === true, // Respect user setting
-    resizable: false,
-    skipTaskbar: true, // Don't show toolbar in taskbar
-    backgroundColor: '#202020', // Match the toolbar background
-    roundedCorners: true, // Enable rounded corners on Windows
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false,
-      devTools: false,
-    }
-  };
-  
-  // Set position if saved, otherwise position above main window
-  if (savedToolbarPosition.x !== null && savedToolbarPosition.y !== null) {
-    toolbarOptions.x = savedToolbarPosition.x;
-    toolbarOptions.y = savedToolbarPosition.y;
-  } else if (mainWindow) {
-    const mainPos = mainWindow.getPosition();
-    const mainSize = mainWindow.getSize();
-    toolbarOptions.x = mainPos[0] + (mainSize[0] / 2) - 160; // Center above main (half of 320px width)
-    toolbarOptions.y = mainPos[1] - 60; // 60px above main window
-  }
-  
-  toolbarWindow = new BrowserWindow(toolbarOptions);
-  toolbarWindow.loadFile('toolbar.html');
-  
-  // Re-assert always-on-top only when necessary (avoid flickering)
-  toolbarWindow.on('blur', () => {
-    // When losing focus, schedule a re-assertion
-    ensureAlwaysOnTop();
-  });
-
-  toolbarWindow.on('show', () => {
-    ensureAlwaysOnTop();
-  });
-  
-  // Save toolbar position when moved and re-assert always-on-top
-  toolbarWindow.on('moved', () => {
-    if (!toolbarWindow) return;
-    const position = toolbarWindow.getPosition();
-    store.set('toolbarPosition', { x: position[0], y: position[1] });
-    ensureAlwaysOnTop(); // Re-assert after drag completes
-  });
-  
-  // Don't quit when toolbar is closed, just hide it
-  toolbarWindow.on('close', (event) => {
-    event.preventDefault();
-    toolbarWindow.hide();
-  });
-  
-  console.log('[Electron] Toolbar window created successfully');
-}
 
 function createSettingsWindow() {
   console.log('[Electron] Creating options window...');
@@ -290,9 +222,6 @@ function ensureAlwaysOnTop() {
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       mainWindow.setAlwaysOnTop(true, 'pop-up-menu');
     }
-    if (toolbarWindow && !toolbarWindow.isDestroyed() && toolbarWindow.isVisible()) {
-      toolbarWindow.setAlwaysOnTop(true, 'pop-up-menu');
-    }
     if (settingsWindow && !settingsWindow.isDestroyed() && settingsWindow.isVisible()) {
       settingsWindow.setAlwaysOnTop(true, 'pop-up-menu');
     }
@@ -305,9 +234,6 @@ function applyAlwaysOnTopSetting(enabled) {
   
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setAlwaysOnTop(enabled === true, 'pop-up-menu');
-  }
-  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
-    toolbarWindow.setAlwaysOnTop(enabled === true, 'pop-up-menu');
   }
 }
 
@@ -437,7 +363,7 @@ function expandWindow() {
   console.log('[Collapse] Expanding window...');
   
   if (!originalWindowSize) {
-    originalWindowSize = { width: 280, height: 340 }; // Default size
+    originalWindowSize = { width: 300, height: 560 }; // Default size
   }
   
   const currentBounds = mainWindow.getBounds();
@@ -660,12 +586,6 @@ function quitApp() {
     mainWindow = null;
   }
   
-  if (toolbarWindow && !toolbarWindow.isDestroyed()) {
-    console.log('[App] Closing toolbar window...');
-    toolbarWindow.destroy();
-    toolbarWindow = null;
-  }
-  
   if (settingsWindow && !settingsWindow.isDestroyed()) {
     console.log('[App] Closing settings window...');
     settingsWindow.destroy();
@@ -678,48 +598,8 @@ function quitApp() {
 }
 
 /* ============================================
-   IPC Communication (Toolbar <-> Main Window)
+   IPC Communication
    ============================================ */
-
-// Handle toolbar button actions
-ipcMain.on('toolbar-action', (event, action) => {
-  console.log('[IPC] Toolbar action received:', action);
-  
-  if (action === 'notes') {
-    if (toolbarWindow && toolbarWindow.webContents) {
-      toolbarWindow.webContents.send('toolbar-notes-toggle');
-    }
-    return;
-  }
-
-  if (!mainWindow || !mainWindow.webContents) return;
-  mainWindow.webContents.send('toolbar-command', action);
-});
-
-ipcMain.on('toolbar-notes-visibility', (event, payload) => {
-  if (!toolbarWindow || toolbarWindow.isDestroyed()) return;
-  const open = payload && payload.open === true;
-  const [x, y] = toolbarWindow.getPosition();
-  const [currentW] = toolbarWindow.getSize();
-  const nextW = open ? Math.max(260, Math.min(520, payload.width  || currentW))  : 320;
-  const nextH = open ? Math.max(200, Math.min(640, payload.height || TOOLBAR_NOTES_HEIGHT)) : TOOLBAR_COLLAPSED_HEIGHT;
-  toolbarWindow.setBounds({ x, y, width: nextW, height: nextH });
-  ensureAlwaysOnTop();
-});
-
-ipcMain.on('toolbar-resize', (event, payload) => {
-  if (!toolbarWindow || toolbarWindow.isDestroyed()) return;
-  const [x, y] = toolbarWindow.getPosition();
-  const w = Math.max(260, Math.min(520, payload.width  || 320));
-  const h = Math.max(200, Math.min(640, payload.height || 320));
-  toolbarWindow.setBounds({ x, y, width: w, height: h });
-});
-
-// Listen for state updates from main window to forward to toolbar
-ipcMain.on('state-update', (event, state) => {
-  if (!toolbarWindow || !toolbarWindow.webContents) return;
-  toolbarWindow.webContents.send('timer-state-update', state);
-});
 
 // Handle double-click for collapse/expand
 ipcMain.on('window-double-click', () => {
@@ -728,6 +608,14 @@ ipcMain.on('window-double-click', () => {
   if (isDocked) {
     toggleCollapse();
   }
+});
+
+ipcMain.on('window-minimize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+});
+
+ipcMain.on('window-close', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide();
 });
 
 // Settings IPC handlers
@@ -1033,24 +921,24 @@ function registerGlobalShortcuts() {
       // TODO: Implement screenshot functionality
     });
     
-    // ALT+SHIFT+N: Open notes panel
+    // ALT+SHIFT+N: Focus notes input
     globalShortcut.register('Alt+Shift+N', () => {
-      console.log('[Shortcut] ALT+SHIFT+N pressed - Open notes');
-      if (toolbarWindow && toolbarWindow.webContents) {
-        if (!toolbarWindow.isVisible()) toolbarWindow.show();
-        toolbarWindow.focus();
+      console.log('[Shortcut] ALT+SHIFT+N pressed - Focus notes');
+      if (mainWindow && mainWindow.webContents) {
+        if (!mainWindow.isVisible()) mainWindow.show();
+        mainWindow.focus();
         ensureAlwaysOnTop();
-        toolbarWindow.webContents.send('toolbar-notes-toggle');
+        mainWindow.webContents.send('toolbar-notes-toggle');
       }
     });
 
-    // CTRL+SPACE: New note — open panel, open add form, focus title input
+    // CTRL+SPACE: New note — open add form, focus title input
     globalShortcut.register('CmdOrCtrl+Space', () => {
       console.log('[Shortcut] CTRL+SPACE pressed - New note');
-      if (toolbarWindow && toolbarWindow.webContents) {
-        if (!toolbarWindow.isVisible()) toolbarWindow.show();
+      if (mainWindow && mainWindow.webContents) {
+        if (!mainWindow.isVisible()) mainWindow.show();
         ensureAlwaysOnTop();
-        toolbarWindow.webContents.send('toolbar-notes-focus-new');
+        mainWindow.webContents.send('toolbar-notes-focus-new');
       }
     });
     
@@ -1145,10 +1033,6 @@ app.on('will-quit', () => {
       mainWindow.destroy();
       console.log('[Electron] Main window destroyed');
     }
-    if (toolbarWindow && !toolbarWindow.isDestroyed()) {
-      toolbarWindow.destroy();
-      console.log('[Electron] Toolbar window destroyed');
-    }
     if (settingsWindow && !settingsWindow.isDestroyed()) {
       settingsWindow.destroy();
       console.log('[Electron] Settings window destroyed');
@@ -1186,9 +1070,6 @@ app.on('before-quit', () => {
   // Remove event listeners from windows to allow clean shutdown
   if (mainWindow) {
     mainWindow.removeAllListeners('close');
-  }
-  if (toolbarWindow) {
-    toolbarWindow.removeAllListeners('close');
   }
 });
 

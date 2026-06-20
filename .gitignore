@@ -193,3 +193,7 @@ coverage/
 # Uncomment if you have user-uploaded icons
 # **/assets/user_*
 
+# ============================================
+# Docs
+# ============================================
+docs/

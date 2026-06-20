@@ -1,271 +1,143 @@
-# Focus Bubbles - Current Status
+# Focus - Current Status
 
-**Date:** October 11, 2025  
-**Version:** Electron 0.1.0  
-**Branch:** electron-migration
-
----
-
-## 📊 Progress Summary
-
-### Electron Migration: ✅ SUCCESS
-
-After Flutter's click-through implementation proved unstable, we successfully migrated to Electron and have a **fully functional MVP-ready timer app**.
+**Date:** May 11, 2026
+**Version:** 0.2.0
+**Branch:** main
 
 ---
 
-## ✅ What's Working (Phase 1 & 2 Complete)
+## Progress Summary
 
-### Core Functionality
-- ✅ **Click-through works perfectly** - Can interact with apps behind timer
-- ✅ **Timer logic** - Start, pause, resume, reset all functional
-- ✅ **Accurate timing** - 250ms tick rate with JavaScript stub
-- ✅ **Phase management** - FOCUS → PAUSE → BREAK → COOLDOWN states
+### v0.2.0 — Session History & Stats: ✅ COMPLETE
 
-### UI/UX
-- ✅ **Beautiful timer bubble** - 280x280px with 50px rounded corners
-- ✅ **Progress ring** - Animated SVG stroke showing time remaining
-- ✅ **Phase icons** - Eye (closed/open) for focus, coffee mug for break
-- ✅ **Progress dots** - 4 dots showing pause → break progression
-- ✅ **Animations** - Yellow dots light up, blink during break, cooldown reset
-- ✅ **Independent toolbar** - Separate draggable window with controls
-- ✅ **Proper spacing** - Elements shifted up 20% for visual balance
-- ✅ **Solid backgrounds** - No transparency, clean dark theme
+SQLite database integration, session recovery, and stats dashboard shipped.
 
-### Window Management
-- ✅ **Always on top** - Timer floats above all windows
-- ✅ **Draggable** - Both timer and toolbar can be moved
-- ✅ **Position persistence** - Remembers location via `electron-store`
-- ✅ **Frameless** - Clean, minimal design
+---
+
+## What's Working
+
+### Core Timer
+- ✅ **Click-through** — Works reliably via `setIgnoreMouseEvents`
+- ✅ **Pomodoro engine** — Start, pause, resume, reset, extend +5
+- ✅ **Phase management** — FOCUS → BREAK → LONG BREAK → REFLECT
+- ✅ **Accurate timing** — 250ms tick rate (JavaScript stub; Rust integration is future)
+- ✅ **Pause-break system** — Warm-up → blinking → cool-down dot animations
+- ✅ **Reflection period** — After 4 full cycles, enforced 10-min break with animation
+
+### UI / UX
+- ✅ **Timer bubble** — 280×340px floating window, rounded corners
+- ✅ **Progress ring** — Animated SVG stroke
+- ✅ **Phase icons** — Eye (focus), coffee mug (break), star (reflect)
+- ✅ **Progress dots** — Gray → yellow → green lifecycle per pomodoro
+- ✅ **Independent toolbar** — Separate draggable window with play/pause, stop, +5, presets, notes, settings
+- ✅ **Settings panel** — Inline 4-tab interface (Duration / Options / Alerts / Stats)
+- ✅ **Edge snap / collapse** — Window snaps to screen edges and collapses to a handle
 
 ### System Integration
-- ✅ **Global hotkeys** - ALT+SHIFT+P/C/S/N work when app is unfocused
-- ✅ **System tray** - Icon with context menu (show/hide, quit)
-- ✅ **IPC communication** - Toolbar ↔ Timer window messaging works
+- ✅ **Global hotkeys** — ALT+SHIFT+P (visibility), C (click-through), O (settings)
+- ✅ **System tray** — Icon, context menu, double-click show/hide
+- ✅ **Position persistence** — Both windows remember last position via electron-store
+- ✅ **Single instance lock** — Prevents duplicate processes
+- ✅ **Sound notifications** — Web Audio API tones for each phase transition
+- ✅ **Desktop notifications** — Windows toast with auto-dismiss
 
-### Settings & Configuration
-- ✅ **Settings panel** - Configure work/break durations, sound, always-on-top
-- ✅ **Timer presets** - 25/5 and 50/10 buttons in toolbar
-- ✅ **Extend +5 button** - Adds 5 minutes to current session
-- ✅ **Sound notifications** - Pleasant tones for phase transitions (configurable)
-- ✅ **Desktop notifications** - Windows toast notifications for phase completions
+### v0.2.0 — Database & History (NEW)
+- ✅ **SQLite database** — `better-sqlite3` at `%APPDATA%\Focus\focus.db`
+- ✅ **Session recording** — Every work/break session written with start time, planned ms, actual ms, phase, status
+- ✅ **Session recovery** — On startup, detects any crash-interrupted `active` row; prompts Keep-as-completed or Discard
+- ✅ **Stats dashboard** — STATS tab in settings panel:
+  - Today's focus time (e.g. "1h 45m") and pomodoro count
+  - Current streak (consecutive days with ≥1 completed work session)
+  - 7-day bar chart (today = red, prior days = amber, zero days = dim)
+- ✅ **Schema migrations** — `schema_meta` table tracks version; safe to add future migrations
 
 ### Distribution
-- ✅ **Windows installer** - Professional NSIS installer (91 MB)
-- ✅ **Portable version** - No-install .exe (91 MB)
+- ✅ **Windows installer** — NSIS setup wizard
+- ✅ **Windows portable** — Single .exe, no install required
+- ✅ **macOS** — DMG + ZIP (Intel & Apple Silicon; built via GitHub Actions)
+- ✅ **Linux** — AppImage, DEB, RPM
 
 ---
 
-## ⏳ What's Pending (Future Enhancements)
+## Pending / Future Work
 
-### High Priority (Complete! ✅)
-- [x] **Fix electron-store warning** - Working perfectly ✅
-- [x] **Desktop notifications** - Windows toast notifications implemented ✅
-- [x] **Sound notifications** - Pleasant audio feedback ✅
-- [x] **Windows installer** - NSIS installer + portable .exe ✅
+### v0.3.0 — Native Performance
+- [ ] Replace `core_stub.js` with Rust core via `neon-bindings`
+- [ ] Monotonic clock + sleep/wake drift correction
+- [ ] Reduced CPU/battery usage
 
-### Medium Priority (Future Features)
-- [ ] **SQLite database** - Session history, notes, settings persistence
-- [ ] **Session recovery** - Resume timer after app restart
-- [ ] **Notes capture** - Text + screenshot functionality
-- [ ] **Statistics** - Track focus time, completed sessions
+### v0.4.0 — Quality of Life
+- [ ] Notes capture with screenshot attach (ALT+SHIFT+N/S stubs already bound)
+- [ ] Multiple timer profiles
+- [ ] Dark/light theme toggle
+- [ ] Keyboard shortcuts (Space = play/pause, Escape = reset)
+- [ ] Auto-start on system boot
 
-### Low Priority (Polish)
-- [ ] **Native Rust core** - Replace JS stub with neon-bindings module
-- [ ] **Multiple themes** - Dark, light, custom colors
-- [ ] **Keyboard shortcuts** - Space to play/pause, Escape to reset
-- [ ] **Auto-start** - Launch on Windows startup
-- [ ] **Installer** - Package as .exe or Windows Store app
+### v1.0.0 — Distribution Polish
+- [ ] Code signing (Windows + macOS)
+- [ ] Auto-update mechanism (electron-updater)
+- [ ] Microsoft Store / Mac App Store distribution
 
----
-
-## 🚀 Recommended Next Steps
-
-### 🎯 Option A: Quick Polish (1-2 days) ⭐ MOSTLY COMPLETE
-
-**Goal:** Make the app feel complete and professional
-
-1. ~~**Create proper app icon**~~ - **SKIPPED** (not essential)
-   
-2. **Fix electron-store warning** - TODO
-   - Downgrade to stable version OR
-   - Implement proper lazy-loading pattern
-
-3. ~~**Add Settings panel**~~ - **✅ DONE**
-   - Modal window with tabbed interface
-   - Configure: work duration, break duration, long break, notifications
-   - Save to electron-store
-
-4. ~~**Implement timer presets**~~ - **✅ DONE**
-   - Buttons in toolbar: 25/5, 50/10
-   - Apply preset on click
-
-5. ~~**Add Extend +5 button**~~ - **✅ DONE**
-   - Button in toolbar
-   - Extends current phase by 5 minutes
-   - Updates progress ring accordingly
-
-6. ~~**Sound notifications**~~ - **✅ DONE**
-   - Pleasant beep tones when phase completes
-   - Optional (toggle in settings)
-   - Different tones for work/break/long-break complete
-
-**Outcome:** ✅ Polished, usable app ready for daily use!
+### Longer-term (Specs Phase 2/3)
+- [ ] Tasks + Kanban + Timeline panels
+- [ ] AI integration (Ollama → OpenAI → Anthropic)
+- [ ] E2EE sync server (multi-device)
+- [ ] Mobile clients
+- [ ] CSV/JSON export for sessions/stats
 
 ---
 
-### 🎯 Option B: Database Foundation (2-3 days)
-
-**Goal:** Add persistence and history tracking
-
-1. **Install better-sqlite3**
-   ```bash
-   npm install better-sqlite3
-   ```
-
-2. **Create database schema**
-   - `sessions` table (id, start_time, end_time, phase, duration)
-   - `notes` table (id, session_id, content, screenshot_path, created_at)
-   - `settings` table (key, value)
-
-3. **Implement session persistence**
-   - Save session on start/pause/stop
-   - Load active session on app start
-   - Session recovery logic
-
-4. **Add basic statistics**
-   - Total focus time today/week/month
-   - Completed sessions count
-   - Display in tray tooltip or stats window
-
-**Outcome:** App with memory, can track progress over time
-
----
-
-### 🎯 Option C: Native Rust Core (3-4 days)
-
-**Goal:** Replace JS stub with native Rust module
-
-1. **Set up neon-bindings**
-   ```bash
-   npm install -g neon-cli
-   cd electron-app
-   neon new native
-   ```
-
-2. **Port Rust code**
-   - Copy logic from old `core/src/lib.rs`
-   - Create Neon FFI bindings
-   - Expose startWork, pause, resume, stop, snapshot functions
-
-3. **Replace core_stub.js**
-   - Update renderer.js to use native module
-   - Test all timer functionality
-   - Benchmark performance
-
-**Outcome:** Production-ready timing engine with monotonic clock
-
----
-
-## 🎨 Current UI State
-
-```
-┌─────────────────────────────────────┐
-│  [▶]  [■]  [📝]  ← Toolbar          │
-└─────────────────────────────────────┘
-
-┌─────────────────────────────────────┐
-│                                     │
-│                                     │
-│         ┌───────────────┐          │
-│         │   ☕  (icon)   │          │
-│         │               │          │
-│         │    24:58      │          │
-│         │   ● ● ● ●     │          │
-│         │    BREAK      │          │
-│         └───────────────┘          │
-│                                     │
-│   [↻]    [  START  ]    [⚙]        │
-│                                     │
-└─────────────────────────────────────┘
-        Timer Widget (280x280)
-```
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 focus_app/
-├── electron-app/          ← CURRENT ELECTRON APP
-│   ├── main.js           ← Main process
-│   ├── index.html        ← Timer widget
-│   ├── styles.css        ← Timer styles
-│   ├── renderer.js       ← Timer logic
-│   ├── toolbar.html      ← Toolbar window
-│   ├── toolbar.css       ← Toolbar styles
-│   ├── toolbar.js        ← Toolbar logic
-│   ├── core_stub.js      ← Timer engine (JS stub)
-│   ├── icon.svg          ← App icon (needs PNG conversion)
-│   └── package.json      ← Dependencies
+├── electron-app/
+│   ├── main.js           ← Main process (IPC, tray, windows, DB init)
+│   ├── db.js             ← SQLite module (better-sqlite3, migrations, stats)
+│   ├── core_stub.js      ← Timer engine (JS stub — Rust integration TBD)
+│   ├── index.html        ← Timer bubble + settings panel (4 tabs)
+│   ├── styles.css        ← All UI styles
+│   ├── renderer.js       ← Timer logic, session lifecycle recording, stats render
+│   ├── toolbar.html/css/js ← Independent toolbar window
+│   ├── settings.html/css/js ← Legacy (superseded by inline panel)
+│   ├── assets/icons/     ← App icons at multiple sizes
+│   └── package.json      ← v0.2.0
 │
-├── app/                   ← ARCHIVED FLUTTER APP
-├── core/                  ← Original Rust engine (not integrated)
-├── server/                ← Unused
+├── docs/
+│   ├── Specifications.md         ← Full product & technical spec
+│   ├── MVP_Milestone_Plan.md     ← Original Electron migration plan
+│   ├── milestones/               ← Per-sprint detail docs
+│   ├── CURRENT_STATUS.md         ← This file
+│   └── SESSION_SUMMARY_2026-05-11.md ← v0.2.0 session notes
 │
 ├── README.md
-├── Specifications.md
-├── MVP_Milestone_Plan.md
-├── ELECTRON_MIGRATION.md
-└── CURRENT_STATUS.md      ← You are here
+└── CHANGELOG.md
 ```
 
 ---
 
-## 🎯 My Recommendation
-
-**Start with Option A (Quick Polish)** for these reasons:
-
-1. **Fastest path to "done"** - 1-2 days vs 2-4 days
-2. **High user impact** - Settings and presets are immediately useful
-3. **Builds confidence** - Ship a polished, usable product first
-4. **Easy wins** - Each task is straightforward and testable
-
-Then, based on usage:
-- If you use it daily → Add database (Option B) for history tracking
-- If performance is an issue → Native Rust (Option C)
-- If neither → Ship it! 🚀
-
----
-
-## 🐛 Known Issues
-
-1. **electron-store warning** - "Store is not a constructor" (works but logs error)
-2. **DevTools auto-open** - Remove for production
-3. **No app icon** - Using default Electron icon
-4. **No installer** - Running via `npm start` only
-
----
-
-## 💡 Tips for Development
+## Quick Start
 
 ```bash
-# Start app
 cd electron-app
-npm start
-
-# The app is running when you see:
-# - Timer window (280x280)
-# - Toolbar window (160x52)
-# - DevTools window (can close)
+npm install          # also runs electron-rebuild for better-sqlite3
+npm start            # dev mode (DevTools open)
+npm run start:prod   # production mode
+npm run build:win    # build Windows installer + portable
 ```
 
-**Test click-through:**
-1. Press `ALT+SHIFT+C` to toggle
-2. When enabled, you can click through timer to apps behind
-3. Press again to disable and interact with timer
+**Hotkeys:**
+- `ALT+SHIFT+P` — Show/hide timer
+- `ALT+SHIFT+C` — Toggle click-through
+- `ALT+SHIFT+O` — Open settings
+
+**DB location:** `%APPDATA%\Focus\focus.db`
 
 ---
 
-**Questions? Next steps? Let me know which option sounds best!** 🚀
+## Known Issues / Limitations
 
+- `core_stub.js` is the live timer engine; no Rust integration yet (timing is fine in practice)
+- Autofill DevTools errors in console are benign Chromium noise
+- No code signing — Windows SmartScreen may warn on first run
+- No auto-update — users must download new releases manually

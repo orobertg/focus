@@ -1,89 +1,98 @@
 /* ============================================
-   Focus Bubbles - Renderer Process
+   Focus - Renderer Process (Unified Card)
    ============================================ */
 
 const { ipcRenderer } = require('electron');
-
-// Import Rust core (currently using stub, will be replaced with native addon)
 const rustCore = require('./core_stub.js');
 
-// State Management
+// ============================================================
+// State
+// ============================================================
+
 const state = {
-  phase: 'idle', // 'idle', 'focus', 'pause', 'break', 'reflect'
-  runState: 'idle', // 'idle', 'running', 'paused'
-  millisRemaining: 25 * 60 * 1000, // 25 minutes default
+  phase: 'idle',
+  runState: 'idle',
+  millisRemaining: 25 * 60 * 1000,
   millisTotal: 25 * 60 * 1000,
   pauseStartTime: null,
   pauseDuration: 0,
-
-  // Active SQLite session row (for completion / abandonment)
-  activeSession: null, // { uuid, startedAt, plannedMs, phase }
-  
-  // Pomodoro tracking
-  completedPomodoros: 0, // 0-4, tracks green dots (only incremented after break completes)
-  pomodorosCycleCount: 0, // Total in current cycle
-  currentPomodoroInBreak: -1, // Which pomodoro (0-3) is currently in break phase (for yellow dot)
-  
-  // Pause-break system (pause → warm-up → blinking → cool-down)
-  isInWarmUp: false, // True during 60-120s pause warm-up phase
-  warmUpProgress: 0, // 0-4, yellow dots filling left-to-right during warm-up
-  isBlinking: false, // True when all 4 dots are blinking (after 120s pause)
+  activeSession: null,
+  completedPomodoros: 0,
+  pomodorosCycleCount: 0,
+  pomodoroHistory: [],
+  pomoTaskLog: [],
+  pomoCurrentColor: '#e8572a',
+  pomoCurrentTaskStart: null,
+  currentPomodoroInBreak: -1,
+  isInWarmUp: false,
+  warmUpProgress: 0,
+  isBlinking: false,
   warmUpIntervalId: null,
-  
-  // Break state
   isInBreakState: false,
-  
-  // Break cool-down (break → focus transition)
   isInCooldown: false,
   cooldownStartTime: null,
-  cooldownProgress: 0, // 0-4, yellow dots clearing right-to-left
+  cooldownProgress: 0,
   cooldownIntervalId: null,
-  
-  // Reflection period (after 4 pomodoros)
   inReflectionPeriod: false,
   reflectionStartTime: null,
   reflectionMinMinutes: 10,
-  reflectionAnimationIndex: 0, // 0-3, which dot is currently lit blue
-  reflectionAnimationDirection: 1, // 1 for left-to-right, -1 for right-to-left
+  reflectionAnimationIndex: 0,
+  reflectionAnimationDirection: 1,
   reflectionAnimationIntervalId: null,
   reflectionTimerIntervalId: null,
-  
-  // Configuration
   config: {
     workMinutes: 25,
     shortBreakMinutes: 5,
     longBreakMinutes: 15,
-    cycleLength: 4, // Long break after 4 pomodoros
+    cycleLength: 4,
     soundEnabled: false,
     autoStartBreaks: false,
     autoStartPomodoros: false,
     showNotifications: true,
-    alwaysOnTop: false
-  }
+    alwaysOnTop: false,
+  },
 };
 
-// Focus Management State
 const focusState = {
-  currentContext: 'timer', // 'timer' or 'settings'
+  currentContext: 'timer',
   timerFocusIndex: 0,
   settingsFocusIndex: 0,
   timerFocusableElements: [],
-  settingsFocusableElements: [], // Filtered by current tab
-  allSettingsControls: [], // All controls from all tabs
-  currentTabIndex: 0, // 0=duration, 1=options, 2=notifications
+  settingsFocusableElements: [],
+  allSettingsControls: [],
+  currentTabIndex: 0,
   tabs: ['duration', 'options', 'notifications', 'stats'],
 };
 
+// Full notes state (mirrors toolbar.js)
 const notesState = {
   notes: [],
+  openNoteIds: new Set(),
+  addFormOpen: false,
+  taskModes: new Map(),
+  selected: null,
+  activeTaskId: null,
+  activeNoteId: null,
+  taskRunSince: null,
+  projects: [],
+  activeProjectId: null,
+  pickerNoteId: null,
+  undoStack: [],
+  dotProgress: new Map(),
 };
 
+// Notes DOM refs (assigned in init)
+let noteEls = null;
+
+let liveTicker = null;
+
+const PROJECT_COLORS = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4', '#ec4899', '#e8572a'];
+
+// ============================================================
 // DOM Elements
+// ============================================================
+
 const elements = {
-  panelsContainer: document.getElementById('panels-container'),
-  timerPanel: document.getElementById('timer-panel'),
-  settingsPanel: document.getElementById('settings-panel'),
-  notesPanel: document.getElementById('notes-panel'),
   bubble: document.getElementById('timer-bubble'),
   phaseIcon: document.getElementById('phase-icon'),
   timerDisplay: document.getElementById('timer-display'),
@@ -127,206 +136,228 @@ const elements = {
   autoStartPomodorosInput: document.getElementById('auto-start-pomodoros'),
   showNotificationsInput: document.getElementById('show-notifications'),
   alwaysOnTopToggle: document.getElementById('always-on-top-toggle'),
-  closeNotesBtn: document.getElementById('close-notes-btn'),
-  notesQuickAddInput: document.getElementById('notes-quick-add-input'),
-  notesQuickAddBtn: document.getElementById('notes-quick-add-btn'),
-  notesList: document.getElementById('notes-list'),
+  orbitDot: document.getElementById('orbit-dot'),
+  trail0: document.getElementById('trail-0'),
+  trail1: document.getElementById('trail-1'),
+  trail2: document.getElementById('trail-2'),
+  trail3: document.getElementById('trail-3'),
+  mq0: document.getElementById('mq0'),
+  mq1: document.getElementById('mq1'),
+  mq2: document.getElementById('mq2'),
+  mq3: document.getElementById('mq3'),
 };
 
-// Timer interval
 let timerInterval = null;
 let pauseBlinkInterval = null;
 
-/* ============================================
-   Global Functions (Must be available immediately)
-   ============================================ */
+// ============================================================
+// Global Functions (available before init)
+// ============================================================
 
-// Expose closeSettings globally for inline onclick handler
-// This MUST be defined before init() runs so it's available immediately
 window.closeSettings = function() {
-  console.log('[Settings] Close button clicked via global inline handler');
-  
-  // Get elements directly (don't rely on cached elements object)
-  const panelsContainer = document.getElementById('panels-container');
-  if (panelsContainer) {
-    panelsContainer.classList.remove('show-settings');
-    console.log('[Settings] Removed show-settings class via global handler');
-  }
-  
-  // Try to call saveSettings if it exists
-  if (typeof saveSettings === 'function') {
-    saveSettings();
-  }
+  const overlay = document.getElementById('settings-overlay');
+  if (overlay) overlay.classList.remove('is-open');
+  if (typeof saveSettings === 'function') saveSettings();
 };
 
-/* ============================================
-   Initialization
-   ============================================ */
+// ============================================================
+// Initialization
+// ============================================================
 
 function init() {
   console.log('[Renderer] Initializing...');
-  
-  // Load saved settings
+
   loadSettings();
-  
-  // Set up event listeners for timer controls
+
+  // Timer controls
   elements.startPauseBtn.addEventListener('click', handleStartPause);
   elements.resetBtn.addEventListener('click', handleReset);
   elements.stopBtn.addEventListener('click', handleReset);
   elements.extendBtn.addEventListener('click', handleExtend);
   elements.settingsBtn.addEventListener('click', () => showSettings());
-  
-  // Close settings button - use multiple strategies to ensure it works
-  
-  // Strategy 1: Event delegation on document (always works)
+
+  // Settings close button — multiple strategies for reliability
   document.addEventListener('click', (e) => {
     const closeBtn = e.target.closest('#close-settings-btn');
     if (closeBtn) {
-      console.log('[Settings] Close button clicked via delegation');
       e.preventDefault();
       e.stopPropagation();
       hideSettings();
     }
-  }, true); // Use capture phase for better reliability
-  
-  // Strategy 2: Direct listener on settings panel (catches bubbled events)
-  const settingsPanel = document.getElementById('settings-panel');
-  if (settingsPanel) {
-    settingsPanel.addEventListener('click', (e) => {
+  }, true);
+
+  const settingsOverlay = document.getElementById('settings-overlay');
+  if (settingsOverlay) {
+    settingsOverlay.addEventListener('click', (e) => {
       if (e.target.id === 'close-settings-btn' || e.target.closest('#close-settings-btn')) {
-        console.log('[Settings] Close button clicked via settings panel');
         e.preventDefault();
         e.stopPropagation();
         hideSettings();
       }
     });
   }
-  
-  // Strategy 3: Direct listener with immediate and delayed attachment
+
   const attachDirectListener = () => {
-    const closeBtnElement = document.getElementById('close-settings-btn');
-    if (closeBtnElement) {
-      // Remove any existing listeners to avoid duplicates
-      const newCloseBtn = closeBtnElement.cloneNode(true);
-      closeBtnElement.parentNode.replaceChild(newCloseBtn, closeBtnElement);
-      
-      // Attach new listener
-      newCloseBtn.addEventListener('click', (e) => {
-        console.log('[Settings] Close button clicked directly');
+    const closeBtnEl = document.getElementById('close-settings-btn');
+    if (closeBtnEl) {
+      const newBtn = closeBtnEl.cloneNode(true);
+      closeBtnEl.parentNode.replaceChild(newBtn, closeBtnEl);
+      newBtn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         hideSettings();
       }, true);
-      
-      console.log('[Settings] Close button listener attached/refreshed');
-    } else {
-      console.error('[Settings] Close button element not found!');
     }
   };
-  
-  // Attach immediately
   attachDirectListener();
-  
-  // Also attach after a delay as backup
   setTimeout(attachDirectListener, 100);
-  
-  // Set up settings tabs
+
+  // Settings tabs
   elements.tabDuration.addEventListener('click', () => switchTab('duration'));
   elements.tabOptions.addEventListener('click', () => switchTab('options'));
   elements.tabNotifications.addEventListener('click', () => switchTab('notifications'));
-  if (elements.tabStats) {
-    elements.tabStats.addEventListener('click', () => switchTab('stats'));
-  }
-  
-  // Set up test sound button
+  if (elements.tabStats) elements.tabStats.addEventListener('click', () => switchTab('stats'));
+
   if (elements.testSoundBtn) {
-    elements.testSoundBtn.addEventListener('click', () => {
-      console.log('[Sound] Test button clicked');
-      playNotificationSound('work-complete');
-    });
+    elements.testSoundBtn.addEventListener('click', () => playNotificationSound('work-complete'));
   }
 
-  if (elements.closeNotesBtn) {
-    elements.closeNotesBtn.addEventListener('click', hideNotes);
+  // Notes DOM refs
+  noteEls = {
+    notesList: document.getElementById('notes-list'),
+    noteInput: document.getElementById('note-input'),
+    addNoteDot: document.getElementById('add-note-dot'),
+    addNoteForm: document.getElementById('timeline-add-form'),
+    projectFilterRow: document.getElementById('project-filter-row'),
+    projectPicker: document.getElementById('project-picker'),
+    projPickList: document.getElementById('proj-pick-list'),
+    projPickInput: document.getElementById('proj-pick-input'),
+  };
+
+  // Notes event listeners
+  if (noteEls.addNoteDot) {
+    noteEls.addNoteDot.addEventListener('click', toggleAddForm);
   }
-  if (elements.notesQuickAddBtn) {
-    elements.notesQuickAddBtn.addEventListener('click', createNoteFromInput);
-  }
-  if (elements.notesQuickAddInput) {
-    elements.notesQuickAddInput.addEventListener('keydown', (e) => {
+  if (noteEls.noteInput) {
+    noteEls.noteInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         e.preventDefault();
-        createNoteFromInput();
+        createNoteFromInput({ focusTask: true });
+      } else if (e.key === 'Tab') {
+        if (noteEls.noteInput.value.trim()) {
+          e.preventDefault();
+          createNoteFromInput({ focusTask: true });
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        if (notesState.addFormOpen) {
+          noteEls.noteInput.value = '';
+          toggleAddForm();
+        }
       }
     });
   }
-  
-  // Set up slider listeners for real-time updates
-  setupSliderListeners();
-  
-  // Initialize focusable elements
-  initializeFocusManagement();
-  
-  // Global keyboard shortcuts
-  document.addEventListener('keydown', (e) => {
-    handleKeyboardNavigation(e);
+
+  if (noteEls.projPickInput) {
+    noteEls.projPickInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const name = noteEls.projPickInput.value.trim();
+        if (!name || !notesState.pickerNoteId) return;
+        const color = PROJECT_COLORS[notesState.projects.length % PROJECT_COLORS.length];
+        ipcRenderer.invoke('project-create', { name, color }).then((res) => {
+          if (!res || !res.ok || !res.project) return;
+          notesState.projects.push(res.project);
+          assignNoteProject(notesState.pickerNoteId, res.project.id);
+          closeProjectPicker();
+        }).catch(() => {});
+      } else if (e.key === 'Escape') {
+        closeProjectPicker();
+      }
+    });
+  }
+
+  document.addEventListener('mousedown', (e) => {
+    if (!noteEls.projectPicker || !noteEls.projectPicker.classList.contains('is-open')) return;
+    if (noteEls.projectPicker.contains(e.target)) return;
+    if (e.target.closest('.note-project-btn, .note-project-badge')) return;
+    closeProjectPicker();
   });
-  
-  // Listen for toolbar commands via IPC
-  ipcRenderer.on('toolbar-command', (event, action) => {
-    console.log('[Renderer] Received toolbar command:', action);
-    switch (action) {
-      case 'toggle-play':
-        handleStartPause();
-        break;
-      case 'play-if-idle':
-        if (state.runState === 'idle') handleStartPause();
-        break;
-      case 'reset':
-        handleReset();
-        break;
-      case 'extend':
-        handleExtend();
-        break;
-      case 'preset-25':
-        applyPreset(25, 5);
-        break;
-      case 'preset-50':
-        applyPreset(50, 10);
-        break;
-      case 'notes':
-        handleNotes();
-        break;
-      case 'settings':
-        showSettings();
+
+  ipcRenderer.on('toolbar-notes-toggle', () => { focusNewNote(); });
+  ipcRenderer.on('toolbar-notes-focus-new', () => { focusNewNote(); });
+
+  // Notes keyboard navigation (runs when settings is not open and no input focused)
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+      const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('is-open');
+      if (!isSettingsOpen) { e.preventDefault(); focusNewNote(); return; }
+    }
+  });
+
+  document.addEventListener('keydown', (e) => {
+    const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('is-open');
+    if (isSettingsOpen) return;
+    const active = document.activeElement;
+    const isInInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+    if (isInInput) return;
+
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      e.preventDefault();
+      undoDelete();
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown':  e.preventDefault(); selectNext(); break;
+      case 'ArrowUp':    e.preventDefault(); selectPrev(); break;
+      case 'ArrowRight': e.preventDefault(); activateSelected(); break;
+      case 'ArrowLeft':  e.preventDefault(); if (state.runState === 'running') handleStartPause(); break;
+      case ' ':
+        if (notesState.selected) { e.preventDefault(); editSelected(); }
         break;
     }
   });
-  
-  // Initial render
+
+  setupSliderListeners();
+  initializeFocusManagement();
+
+  document.addEventListener('keydown', (e) => {
+    handleKeyboardNavigation(e);
+  });
+
+  // Toolbar command IPC (keyboard shortcuts via main process)
+  ipcRenderer.on('toolbar-command', (event, action) => {
+    console.log('[Renderer] Toolbar command:', action);
+    switch (action) {
+      case 'toggle-play':   handleStartPause(); break;
+      case 'play-if-idle':  if (state.runState === 'idle') handleStartPause(); break;
+      case 'reset':         handleReset(); break;
+      case 'extend':        handleExtend(); break;
+      case 'preset-25':     applyPreset(25, 5); break;
+      case 'preset-50':     applyPreset(50, 10); break;
+      case 'notes':         handleNotes(); break;
+      case 'settings':      showSettings(); break;
+    }
+  });
+
+  const winMinBtn   = document.getElementById('win-minimize-btn');
+  const winCloseBtn = document.getElementById('win-close-btn');
+  if (winMinBtn)   winMinBtn.addEventListener('click',   () => ipcRenderer.send('window-minimize'));
+  if (winCloseBtn) winCloseBtn.addEventListener('click', () => ipcRenderer.send('window-close'));
+
   updateUI();
-  
+  loadNotes();
+
   console.log('[Renderer] Ready!');
 }
 
 function handleNotes() {
-  console.log('[Notes] Opening notes panel');
-  showNotes();
-  loadNotes();
+  focusNewNote();
 }
 
-// Send state updates to toolbar via IPC
-function sendStateUpdate() {
-  ipcRenderer.send('state-update', {
-    runState: state.runState,
-    phase: state.phase,
-    isInBreakState: state.isInBreakState,
-  });
-}
-
-/* ============================================
-   Session Recording (SQLite via main-process IPC)
-   ============================================ */
+// ============================================================
+// Session Recording (SQLite via main-process IPC)
+// ============================================================
 
 function normalizePhase(corePhase) {
   if (!corePhase) return 'unknown';
@@ -344,12 +375,7 @@ function recordSessionStart(snapshot) {
   const plannedMs = snapshot.millisTotal || 0;
   const cycleIndex = snapshot.cycleIndex ?? state.pomodorosCycleCount ?? null;
 
-  state.activeSession = {
-    uuid: snapshot.sessionId,
-    startedAt,
-    plannedMs,
-    phase,
-  };
+  state.activeSession = { uuid: snapshot.sessionId, startedAt, plannedMs, phase };
 
   ipcRenderer.invoke('session-start', {
     sessionUuid: snapshot.sessionId,
@@ -358,12 +384,8 @@ function recordSessionStart(snapshot) {
     plannedMs,
     cycleIndex,
   }).then((res) => {
-    if (!res || !res.ok) {
-      console.warn('[Sessions] Failed to record session start:', res && res.error);
-    }
-  }).catch((err) => {
-    console.warn('[Sessions] session-start IPC error:', err);
-  });
+    if (!res || !res.ok) console.warn('[Sessions] session-start failed:', res && res.error);
+  }).catch((err) => console.warn('[Sessions] session-start IPC error:', err));
 }
 
 function recordSessionComplete() {
@@ -372,14 +394,8 @@ function recordSessionComplete() {
   const endedAt = Date.now();
   const actualMs = Math.min(endedAt - active.startedAt, active.plannedMs);
   state.activeSession = null;
-
-  ipcRenderer.invoke('session-complete', {
-    sessionUuid: active.uuid,
-    endedAt,
-    actualMs,
-  }).catch((err) => {
-    console.warn('[Sessions] session-complete IPC error:', err);
-  });
+  ipcRenderer.invoke('session-complete', { sessionUuid: active.uuid, endedAt, actualMs })
+    .catch((err) => console.warn('[Sessions] session-complete IPC error:', err));
 }
 
 function recordSessionAbandon() {
@@ -388,257 +404,163 @@ function recordSessionAbandon() {
   const endedAt = Date.now();
   const actualMs = Math.max(0, Math.min(endedAt - active.startedAt, active.plannedMs));
   state.activeSession = null;
-
-  ipcRenderer.invoke('session-abandon', {
-    sessionUuid: active.uuid,
-    endedAt,
-    actualMs,
-  }).catch((err) => {
-    console.warn('[Sessions] session-abandon IPC error:', err);
-  });
+  ipcRenderer.invoke('session-abandon', { sessionUuid: active.uuid, endedAt, actualMs })
+    .catch((err) => console.warn('[Sessions] session-abandon IPC error:', err));
 }
 
-/* ============================================
-   Timer Logic
-   ============================================ */
+// ============================================================
+// Timer Logic
+// ============================================================
 
 function handleStartPause() {
-  console.log('========================================');
-  console.log('[Timer] 🔵 START/PAUSE BUTTON CLICKED');
-  console.log('[Timer] Current runState:', state.runState);
-  console.log('[Timer] Current phase:', state.phase);
-  console.log('========================================');
-  
+  console.log('[Timer] START/PAUSE clicked — runState:', state.runState);
   if (state.runState === 'idle' || state.runState === 'paused') {
-    console.log('[Timer] Calling startTimer()...');
     startTimer();
   } else if (state.runState === 'running') {
-    console.log('[Timer] Calling pauseTimer()...');
     pauseTimer();
   }
-  
-  sendStateUpdate(); // Notify toolbar
 }
 
 function startTimer() {
-  console.log('========================================');
-  console.log('[Timer] 🟢 START_TIMER() FUNCTION CALLED');
-  console.log('[Timer] Phase:', state.phase, '| RunState:', state.runState);
-  console.log('========================================');
-  
-  // Check if in reflection period
+  console.log('[Timer] startTimer() — phase:', state.phase, 'runState:', state.runState);
+
   if (state.inReflectionPeriod) {
-    const reflectionElapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60; // minutes
+    const reflectionElapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60;
     if (reflectionElapsed < state.reflectionMinMinutes) {
       const remaining = Math.ceil(state.reflectionMinMinutes - reflectionElapsed);
-      console.log(`[Timer] Still in reflection period. Please wait ${remaining} more minutes.`);
       alert(`Reflection period in progress.\n\nPlease take a ${remaining}-minute break before starting a new cycle.`);
       return;
     } else {
-      // End reflection period and start new cycle
-      console.log('[Timer] Reflection period complete. Starting new cycle.');
-      
-      // Clear reflection intervals
-      if (state.reflectionTimerIntervalId) {
-        clearInterval(state.reflectionTimerIntervalId);
-        state.reflectionTimerIntervalId = null;
-      }
-      if (state.reflectionAnimationIntervalId) {
-        clearInterval(state.reflectionAnimationIntervalId);
-        state.reflectionAnimationIntervalId = null;
-      }
-      
+      if (state.reflectionTimerIntervalId) { clearInterval(state.reflectionTimerIntervalId); state.reflectionTimerIntervalId = null; }
+      if (state.reflectionAnimationIntervalId) { clearInterval(state.reflectionAnimationIntervalId); state.reflectionAnimationIntervalId = null; }
       state.inReflectionPeriod = false;
       state.reflectionStartTime = null;
       state.completedPomodoros = 0;
       state.pomodorosCycleCount = 0;
+      state.pomodoroHistory = [];
+      state.pomoTaskLog = [];
+      state.pomoCurrentTaskStart = null;
       state.phase = 'focus';
     }
   }
-  
+
   try {
     let snapshot;
-    
-    // If starting from idle, check phase
+
     if (state.runState === 'idle') {
       if (state.phase === 'break') {
-        // Starting a break manually - set yellow dot NOW
         state.currentPomodoroInBreak = state.completedPomodoros;
-        console.log(`[Timer] Starting break manually - yellow dot for pomodoro index: ${state.currentPomodoroInBreak}`);
-        
         const isLongBreak = (state.pomodorosCycleCount % state.config.cycleLength === 0);
         const breakMinutes = isLongBreak ? state.config.longBreakMinutes : state.config.shortBreakMinutes;
-        console.log('[Timer] Starting break session manually:', breakMinutes, 'minutes');
         const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
         snapshot = JSON.parse(snapshotJson);
         recordSessionStart(snapshot);
-        console.log('[Timer] Started break session:', snapshot);
       } else {
-        // Starting a focus/work session
-      const snapshotJson = rustCore.startWork();
-      snapshot = JSON.parse(snapshotJson);
-      recordSessionStart(snapshot);
-      console.log('[Timer] Started work session:', snapshot);
+        const snapshotJson = rustCore.startWork();
+        snapshot = JSON.parse(snapshotJson);
+        recordSessionStart(snapshot);
+        state.pomoTaskLog = [];
+        state.pomoCurrentColor = getActiveNoteColor();
+        state.pomoCurrentTaskStart = Date.now();
       }
     } else if (state.runState === 'paused') {
-      // Check if resuming from pause-break
       if (state.isInWarmUp || state.isBlinking) {
-        console.log('[Timer] Resuming from PAUSE-BREAK - starting cool-down');
-        
-        // Clear pause monitoring
-        if (pauseBlinkInterval) {
-          clearInterval(pauseBlinkInterval);
-          pauseBlinkInterval = null;
-        }
-        
-        // Reset warm-up/blinking state
+        if (pauseBlinkInterval) { clearInterval(pauseBlinkInterval); pauseBlinkInterval = null; }
         state.isInWarmUp = false;
         state.isBlinking = false;
         state.isInBreakState = false;
-        
-        // Start cool-down
         state.isInCooldown = true;
         state.cooldownStartTime = Date.now();
-        state.cooldownProgress = 0; // Will clear dots right-to-left
-        console.log('[Timer] Cool-down started - yellow dots will clear right-to-left');
+        state.cooldownProgress = 0;
       }
-      
-      // Resume from pause
       const snapshotJson = rustCore.resumeTimer();
       snapshot = JSON.parse(snapshotJson);
-      console.log('[Timer] Resumed from pause:', snapshot);
+      if (!state.isInBreakState) state.pomoCurrentTaskStart = Date.now();
     }
-    
-    // Update state from snapshot
-    if (snapshot) {
-      updateStateFromSnapshot(snapshot);
-    }
-    
-    // Start ticker
-    if (timerInterval) {
-      console.log('[Timer] Clearing existing interval:', timerInterval);
-      clearInterval(timerInterval);
-    }
-    
-    console.log('[Timer] About to start interval...');
-    timerInterval = setInterval(tick, 250); // 4 ticks per second
-    console.log('[Timer] ✅ INTERVAL STARTED! intervalID:', timerInterval);
-    console.log('[Timer] Current state:', {
-      phase: state.phase,
-      runState: state.runState,
-      millisRemaining: state.millisRemaining,
-      millisTotal: state.millisTotal
-    });
-    
-    // Manually call tick once to verify it works
-    console.log('[Timer] Calling tick() manually for verification...');
+
+    if (snapshot) updateStateFromSnapshot(snapshot);
+
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(tick, 250);
     tick();
-    console.log('[Timer] Manual tick() complete');
-    
     updateUI();
+
+    // Notify notes system that timer started
+    onNotesTimerRunning();
+
   } catch (error) {
     console.error('[Timer] Error starting timer:', error);
   }
 }
 
 function pauseTimer() {
-  console.log('========================================');
-  console.log('[Timer] ⏸️  PAUSE BUTTON CLICKED');
-  console.log('[Timer] Current runState:', state.runState);
-  console.log('========================================');
-  
+  console.log('[Timer] pauseTimer()');
+  if (!state.isInBreakState && state.pomoCurrentTaskStart !== null) {
+    const ms = Date.now() - state.pomoCurrentTaskStart;
+    if (ms > 0) state.pomoTaskLog.push({ color: state.pomoCurrentColor, ms });
+    state.pomoCurrentTaskStart = null;
+  }
   try {
     const snapshotJson = rustCore.pauseTimer();
     const snapshot = JSON.parse(snapshotJson);
-    console.log('[Timer] Rust core returned snapshot:', snapshot);
-    
     updateStateFromSnapshot(snapshot);
-    console.log('[Timer] After updateStateFromSnapshot, state.runState:', state.runState);
   } catch (error) {
     console.error('[Timer] Error pausing timer:', error);
   }
-  
+
   state.pauseStartTime = Date.now();
   state.pauseDuration = 0;
-  
-  if (timerInterval) {
-    clearInterval(timerInterval);
-    timerInterval = null;
-    console.log('[Timer] Timer interval cleared');
-  }
-  
-  // Start monitoring pause duration
+
+  if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
   if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
   pauseBlinkInterval = setInterval(updatePauseDuration, 250);
-  
-  console.log('[Timer] Calling updateUI()...');
+
   updateUI();
-  console.log('[Timer] After updateUI(), button text should be:', elements.startPauseBtn.textContent);
-  console.log('========================================');
+
+  // Notify notes system that timer stopped
+  onNotesTimerStopped();
 }
 
 function updatePauseDuration() {
   if (!state.pauseStartTime) return;
-  
-  const pauseElapsed = Math.floor((Date.now() - state.pauseStartTime) / 1000); // seconds
+  const pauseElapsed = Math.floor((Date.now() - state.pauseStartTime) / 1000);
   state.pauseDuration = pauseElapsed;
-  
-  // Phase 1: Normal pause (0-60 seconds)
-  if (pauseElapsed < 60) {
-    // Do nothing, just paused
-    return;
-  }
-  
-  // Phase 2: Warm-up (60-120 seconds) - Yellow dots appear left-to-right every 15s
+
+  if (pauseElapsed < 60) return;
+
   if (pauseElapsed >= 60 && pauseElapsed < 120) {
     if (!state.isInWarmUp) {
-      console.log('[Pause-Break] Entering WARM-UP phase (1 minute pause reached)');
       state.isInWarmUp = true;
-      state.isInBreakState = true; // Show coffee icon
+      state.isInBreakState = true;
       state.warmUpProgress = 0;
     }
-    
-    // Calculate which dot should be yellow (0-3 for first 3 dots, all 4 at 2:00)
     const warmUpElapsed = pauseElapsed - 60;
-    const newProgress = Math.min(Math.floor(warmUpElapsed / 15), 3); // 0-3 during warm-up
-    
+    const newProgress = Math.min(Math.floor(warmUpElapsed / 15), 3);
     if (newProgress !== state.warmUpProgress) {
       state.warmUpProgress = newProgress;
-      console.log(`[Pause-Break] Warm-up progress: ${newProgress + 1}/4 yellow dots (left-to-right)`);
       updateUI();
     }
     return;
   }
-  
-  // Phase 3: Blinking (120+ seconds) - All 4 dots blink
+
   if (pauseElapsed >= 120) {
     if (!state.isBlinking) {
-      console.log('[Pause-Break] Entering BLINKING phase (2 minutes pause reached)');
-      state.isInWarmUp = false; // Exit warm-up phase
+      state.isInWarmUp = false;
       state.isBlinking = true;
-      state.warmUpProgress = 4; // All 4 dots
+      state.warmUpProgress = 4;
       updateUI();
     }
-    // Dots will blink via CSS animation
-    return;
   }
 }
 
 function updateCooldown() {
   if (!state.isInCooldown || !state.cooldownStartTime) return;
-  
   const cooldownElapsed = Math.floor((Date.now() - state.cooldownStartTime) / 1000);
   const newProgress = Math.min(Math.floor(cooldownElapsed / 15), 4);
-  
-  // Update progress if it changed
   if (newProgress !== state.cooldownProgress) {
     state.cooldownProgress = newProgress;
-    console.log(`[Pause-Break] Cool-down progress: ${newProgress}/4 dots cleared (right-to-left)`);
   }
-  
-  // Complete cooldown after 60 seconds
   if (cooldownElapsed >= 60) {
-    console.log('[Pause-Break] Cool-down complete - all yellow dots cleared');
     state.isInCooldown = false;
     state.cooldownStartTime = null;
     state.cooldownProgress = 0;
@@ -647,33 +569,20 @@ function updateCooldown() {
 }
 
 function updateReflectionAnimation() {
-  // Move to next dot
   state.reflectionAnimationIndex += state.reflectionAnimationDirection;
-  
-  // Reverse direction if we hit the boundaries
-  if (state.reflectionAnimationIndex >= 3) {
-    // Reached rightmost dot, reverse to go left
-    state.reflectionAnimationDirection = -1;
-  } else if (state.reflectionAnimationIndex <= 0) {
-    // Reached leftmost dot, reverse to go right
-    state.reflectionAnimationDirection = 1;
-  }
-  
+  if (state.reflectionAnimationIndex >= 3) state.reflectionAnimationDirection = -1;
+  else if (state.reflectionAnimationIndex <= 0) state.reflectionAnimationDirection = 1;
   updateUI();
 }
 
 function updateReflectionTimer() {
   if (!state.inReflectionPeriod || !state.reflectionStartTime) return;
-  
-  // Calculate remaining time
-  const elapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60; // minutes
+  const elapsed = (Date.now() - state.reflectionStartTime) / 1000 / 60;
   const remaining = state.reflectionMinMinutes - elapsed;
-  
   if (remaining > 0) {
     state.millisRemaining = remaining * 60 * 1000;
     updateUI();
   } else {
-    // Reflection period complete
     state.millisRemaining = 0;
     updateUI();
   }
@@ -681,21 +590,16 @@ function updateReflectionTimer() {
 
 function handleReset() {
   console.log('[Timer] Reset clicked');
-
-  // Record the in-flight session as abandoned before stopping
   recordSessionAbandon();
 
   try {
     const snapshotJson = rustCore.stopTimer();
     const snapshot = JSON.parse(snapshotJson);
-    console.log('[Timer] Reset/Stopped:', snapshot);
-    
     updateStateFromSnapshot(snapshot);
   } catch (error) {
     console.error('[Timer] Error resetting timer:', error);
   }
-  
-  // Stop all intervals
+
   if (timerInterval) clearInterval(timerInterval);
   if (pauseBlinkInterval) clearInterval(pauseBlinkInterval);
   if (state.reflectionTimerIntervalId) clearInterval(state.reflectionTimerIntervalId);
@@ -704,20 +608,20 @@ function handleReset() {
   pauseBlinkInterval = null;
   state.reflectionTimerIntervalId = null;
   state.reflectionAnimationIntervalId = null;
-  
-  // Reset state (clean up old references)
+
   state.runState = 'idle';
   state.phase = 'focus';
   state.completedPomodoros = 0;
   state.pomodorosCycleCount = 0;
+  state.pomodoroHistory = [];
+  state.pomoTaskLog = [];
+  state.pomoCurrentTaskStart = null;
   state.currentPomodoroInBreak = -1;
   state.isInBreakState = false;
   state.inReflectionPeriod = false;
   state.reflectionStartTime = null;
   state.millisRemaining = state.config.workMinutes * 60 * 1000;
   state.millisTotal = state.millisRemaining;
-  
-  // Reset pause-break state
   state.pauseStartTime = null;
   state.pauseDuration = 0;
   state.isInWarmUp = false;
@@ -726,153 +630,73 @@ function handleReset() {
   state.isInCooldown = false;
   state.cooldownStartTime = null;
   state.cooldownProgress = 0;
-  
-  console.log('[Timer] State reset:', state);
+
   updateUI();
-  sendStateUpdate(); // Notify toolbar
+  onNotesTimerStopped();
 }
 
 function handleExtend() {
-  console.log('[Timer] Extend +5 clicked');
-  
-  // Can only extend when timer is running or paused (not idle)
-  if (state.runState === 'idle') {
-    console.log('[Timer] Cannot extend - timer is idle');
-    return;
-  }
-  
-  // Add 5 minutes (300,000 milliseconds)
-  const extensionMillis = 5 * 60 * 1000;
-  state.millisRemaining += extensionMillis;
-  state.millisTotal += extensionMillis;
-  
-  console.log(`[Timer] Extended by 5 minutes. New total: ${Math.ceil(state.millisRemaining / 1000 / 60)} minutes`);
-  
-  // Update UI
+  if (state.runState === 'idle') return;
+  state.millisRemaining += 5 * 60 * 1000;
+  state.millisTotal += 5 * 60 * 1000;
   updateUI();
 }
 
-// Settings are now handled inline - see Settings Panel section below
-
-// (Old settings IPC listener - can be removed)
 ipcRenderer.on('settings-updated', (event, settings) => {
-  console.log('[Settings] Settings updated (legacy):', settings);
-  // Settings are now handled via local panel
   state.config.workMinutes = settings.workMinutes;
   state.config.shortBreakMinutes = settings.shortBreakMinutes;
   state.config.longBreakMinutes = settings.longBreakMinutes;
   state.config.cycleLength = settings.cycleLength;
   state.config.soundEnabled = settings.soundEnabled;
-  
-  // If timer is idle, reset to new work duration
   if (state.runState === 'idle') {
     state.millisRemaining = settings.workMinutes * 60 * 1000;
-    state.millisTotal = settings.workMinutes * 60 * 1000;
+    state.millisTotal = state.millisRemaining;
     updateUI();
   }
 });
 
-/* ============================================
-   Rust Core Integration
-   ============================================ */
+// ============================================================
+// Rust Core Integration
+// ============================================================
 
 function updateStateFromSnapshot(snapshot) {
-  // Map Rust enum values to JS strings
   state.phase = snapshot.phase.toLowerCase();
   state.runState = snapshot.runState.toLowerCase();
   state.millisTotal = snapshot.millisTotal;
   state.millisRemaining = snapshot.millisTotal - snapshot.millisElapsed;
-  
-  console.log('[Core] Updated state from snapshot:', {
-    phase: state.phase,
-    runState: state.runState,
-    millisTotal: state.millisTotal,
-    millisRemaining: state.millisRemaining,
-  });
 }
 
-/* ============================================
-   Timer Tick
-   ============================================ */
+// ============================================================
+// Timer Tick
+// ============================================================
 
 function tick() {
-  if (state.runState !== 'running') {
-    console.log('[Timer] tick() called but runState is not running:', state.runState);
-    return;
-  }
-  
+  if (state.runState !== 'running') return;
   try {
-    // Get latest snapshot from Rust core
     const snapshotJson = rustCore.getSnapshot();
     const snapshot = JSON.parse(snapshotJson);
-    
-    // Debug: Log every 10 seconds
-    const secondsRemaining = Math.floor((snapshot.millisTotal - snapshot.millisElapsed) / 1000);
-    if (secondsRemaining % 10 === 0 && secondsRemaining > 0) {
-      console.log(`[Timer] Ticking... ${secondsRemaining}s remaining (phase: ${snapshot.phase})`);
-    }
-    
     updateStateFromSnapshot(snapshot);
-    
-    // Update cool-down if active (clears yellow dots right-to-left)
-  if (state.isInCooldown) {
-    updateCooldown();
-  }
-  
-    // Check if phase is complete (only trigger once by clearing interval first)
+    if (state.isInCooldown) updateCooldown();
     if (state.millisRemaining <= 0) {
-      console.log('========================================');
-      console.log('[Timer] ⚠️ PHASE COMPLETE DETECTED!');
-      console.log('[Timer] Phase:', state.phase);
-      console.log('[Timer] millisRemaining:', state.millisRemaining);
-      console.log('[Timer] millisElapsed:', snapshot.millisElapsed);
-      console.log('[Timer] millisTotal:', snapshot.millisTotal);
-      console.log('[Timer] Auto-start breaks:', state.config.autoStartBreaks);
-      console.log('[Timer] Auto-start pomodoros:', state.config.autoStartPomodoros);
-      console.log('========================================');
-      
-      // Stop ticking immediately to prevent multiple calls to onPhaseComplete
-      if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
-        console.log('[Timer] Interval cleared');
-      }
-      
-      // Handle phase completion (this will start new interval if auto-start is enabled)
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
       onPhaseComplete();
-      return; // Exit tick immediately after phase completion
+      return;
     }
   } catch (error) {
     console.error('[Timer] Error in tick:', error);
   }
-  
   updateUI();
 }
 
-/* ============================================
-   Desktop Notifications
-   ============================================ */
+// ============================================================
+// Desktop Notifications
+// ============================================================
 
 function showDesktopNotification(title, body, type = 'default') {
-  // Check if desktop notifications are enabled in settings
-  if (!state.config.showNotifications) {
-    console.log('[Notification] Desktop notifications disabled in settings');
-    return;
-  }
-  
-  // Check if notifications are supported
-  if (!('Notification' in window)) {
-    console.log('[Notification] Browser does not support notifications');
-    return;
-  }
-  
-  // Request permission if needed
+  if (!state.config.showNotifications) return;
+  if (!('Notification' in window)) return;
   if (Notification.permission === 'default') {
-    Notification.requestPermission().then(permission => {
-      if (permission === 'granted') {
-        sendNotification(title, body, type);
-      }
-    });
+    Notification.requestPermission().then(p => { if (p === 'granted') sendNotification(title, body, type); });
   } else if (Notification.permission === 'granted') {
     sendNotification(title, body, type);
   }
@@ -880,294 +704,169 @@ function showDesktopNotification(title, body, type = 'default') {
 
 function sendNotification(title, body, type) {
   try {
-    const notification = new Notification(title, {
-      body: body,
-      icon: 'assets/icons/icon-256.png', // App icon for notification
-      tag: 'focus-timer', // Replace previous notification with same tag
-      requireInteraction: false, // Auto-dismiss after a few seconds
-      silent: false, // Allow system sound (in addition to our custom sound)
+    const n = new Notification(title, {
+      body,
+      icon: 'assets/icons/icon-256.png',
+      tag: 'focus-timer',
+      requireInteraction: false,
+      silent: false,
     });
-    
-    // Auto-close after 5 seconds
-    setTimeout(() => {
-      notification.close();
-    }, 5000);
-    
-    console.log(`[Notification] Shown: ${title} - ${body}`);
+    setTimeout(() => n.close(), 5000);
   } catch (error) {
-    console.error('[Notification] Failed to show notification:', error);
+    console.error('[Notification] Failed:', error);
   }
 }
 
-/* ============================================
-   Sound Notifications
-   ============================================ */
+// ============================================================
+// Sound Notifications
+// ============================================================
 
 function playNotificationSound(type = 'default') {
-  // Check if sound is enabled in settings
-  if (!state.config.soundEnabled) {
-    console.log('[Sound] Notifications disabled in settings');
-    return;
-  }
-  
+  if (!state.config.soundEnabled) return;
   try {
     const audioContext = new (window.AudioContext || window.webkitAudioContext)();
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
-    
     oscillator.connect(gainNode);
     gainNode.connect(audioContext.destination);
-    
-    // Configure sound based on event type
-    let frequency = 800;
-    let duration = 0.2; // seconds
-    let waveType = 'sine';
-    
+
+    let frequency = 800, duration = 0.2;
     switch (type) {
-      case 'work-complete':
-        // Higher pitch, pleasant tone for work session complete
-        frequency = 880; // A5 note
-        duration = 0.3;
-        waveType = 'sine';
-        break;
-        
-      case 'break-complete':
-        // Lower pitch, gentle tone for break complete
-        frequency = 659; // E5 note
-        duration = 0.25;
-        waveType = 'sine';
-        break;
-        
-      case 'long-break-complete':
-        // Two-tone sequence for long break
-        frequency = 698; // F5 note
-        duration = 0.4;
-        waveType = 'sine';
-        break;
-        
-      default:
-        // Default notification sound
-        frequency = 800;
-        duration = 0.2;
-        waveType = 'sine';
+      case 'work-complete':       frequency = 880; duration = 0.3; break;
+      case 'break-complete':      frequency = 659; duration = 0.25; break;
+      case 'long-break-complete': frequency = 698; duration = 0.4; break;
     }
-    
+
     oscillator.frequency.value = frequency;
-    oscillator.type = waveType;
-    
-    // Fade out to avoid clicking sound
+    oscillator.type = 'sine';
     const now = audioContext.currentTime;
-    gainNode.gain.setValueAtTime(0.3, now); // Start volume (0.3 = moderate)
+    gainNode.gain.setValueAtTime(0.3, now);
     gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
-    
     oscillator.start(now);
     oscillator.stop(now + duration);
-    
-    console.log(`[Sound] Played ${type} notification (${frequency}Hz, ${duration}s)`);
-    
-    // For long break, add a second tone
+
     if (type === 'long-break-complete') {
       setTimeout(() => {
-        const oscillator2 = audioContext.createOscillator();
-        const gainNode2 = audioContext.createGain();
-        
-        oscillator2.connect(gainNode2);
-        gainNode2.connect(audioContext.destination);
-        
-        oscillator2.frequency.value = 880; // Higher note
-        oscillator2.type = 'sine';
-        
+        const o2 = audioContext.createOscillator();
+        const g2 = audioContext.createGain();
+        o2.connect(g2); g2.connect(audioContext.destination);
+        o2.frequency.value = 880; o2.type = 'sine';
         const now2 = audioContext.currentTime;
-        gainNode2.gain.setValueAtTime(0.25, now2);
-        gainNode2.gain.exponentialRampToValueAtTime(0.01, now2 + 0.2);
-        
-        oscillator2.start(now2);
-        oscillator2.stop(now2 + 0.2);
-      }, 150); // Slight delay between tones
+        g2.gain.setValueAtTime(0.25, now2);
+        g2.gain.exponentialRampToValueAtTime(0.01, now2 + 0.2);
+        o2.start(now2); o2.stop(now2 + 0.2);
+      }, 150);
     }
-    
   } catch (error) {
-    console.error('[Sound] Failed to play notification:', error);
+    console.error('[Sound] Failed:', error);
   }
 }
 
-function onPhaseComplete() {
-  console.log('========================================');
-  console.log('[Timer] 🔔 onPhaseComplete() CALLED');
-  console.log('[Timer] Phase:', state.phase, 'RunState:', state.runState);
-  console.log('[Timer] Config:', { autoStartBreaks: state.config.autoStartBreaks, autoStartPomodoros: state.config.autoStartPomodoros });
-  console.log('========================================');
+// ============================================================
+// Phase Completion
+// ============================================================
 
-  // Mark the just-finished session as completed before any new one starts
+function onPhaseComplete() {
   recordSessionComplete();
 
   try {
     if (state.phase === 'work') {
-      // Play work complete sound
       playNotificationSound('work-complete');
-      
-      // Show desktop notification
-      showDesktopNotification(
-        '🎯 Focus Session Complete!',
-        'Great work! Time for a break.',
-        'work-complete'
-      );
-      
-      // Pomodoro completed - now enter break phase
-    state.pomodorosCycleCount++;
-      console.log(`[Timer] Pomodoro ${state.pomodorosCycleCount} completed. Transitioning to break.`);
-      
-      // Determine break duration (short or long)
+      showDesktopNotification('🎯 Focus Session Complete!', 'Great work! Time for a break.', 'work-complete');
+
+      // Finalize task segments for this Pomodoro
+      if (state.pomoCurrentTaskStart !== null) {
+        const ms = Date.now() - state.pomoCurrentTaskStart;
+        if (ms > 0) state.pomoTaskLog.push({ color: state.pomoCurrentColor, ms });
+        state.pomoCurrentTaskStart = null;
+      }
+      const totalMs = state.pomoTaskLog.reduce((s, seg) => s + seg.ms, 0);
+      if (totalMs > 0) {
+        const entry = [];
+        for (const seg of state.pomoTaskLog) {
+          const last = entry[entry.length - 1];
+          if (last && last.color === seg.color) last.fraction += seg.ms / totalMs;
+          else entry.push({ color: seg.color, fraction: seg.ms / totalMs });
+        }
+        state.pomodoroHistory.push(entry);
+      } else {
+        state.pomodoroHistory.push([{ color: state.pomoCurrentColor || '#e8572a', fraction: 1 }]);
+      }
+      state.pomoTaskLog = [];
+
+      state.pomodorosCycleCount++;
       const isLongBreak = (state.pomodorosCycleCount % state.config.cycleLength === 0);
       const breakMinutes = isLongBreak ? state.config.longBreakMinutes : state.config.shortBreakMinutes;
-      
-      console.log(`[Timer] ${isLongBreak ? 'Long' : 'Short'} break (${breakMinutes} minutes)`);
-      
-      // Set up break timer
-    state.phase = 'break';
+      state.phase = 'break';
       state.isInBreakState = true;
-      
-      // Check auto-start breaks setting
+
       if (state.config.autoStartBreaks) {
-        console.log('[Timer] Auto-start breaks enabled - starting break automatically in Rust core');
-        
-        // Set yellow dot WHEN break starts
         state.currentPomodoroInBreak = state.completedPomodoros;
-        console.log(`[Timer] Yellow dot will be for pomodoro index: ${state.currentPomodoroInBreak}`);
-        
-        // Start break session in Rust core
         const snapshotJson = rustCore.startBreak(breakMinutes, isLongBreak);
         const snapshot = JSON.parse(snapshotJson);
         recordSessionStart(snapshot);
-        console.log('[Timer] Break snapshot from Rust core:', snapshot);
         updateStateFromSnapshot(snapshot);
-        
         state.runState = 'running';
-        console.log('[Timer] Starting break interval...');
-        // Start the timer interval
-        timerInterval = setInterval(tick, 250); // 4 ticks per second
-        console.log('[Timer] Break interval started. State:', { phase: state.phase, runState: state.runState, millisRemaining: state.millisRemaining });
+        timerInterval = setInterval(tick, 250);
       } else {
-        console.log('[Timer] Auto-start breaks disabled - waiting for user to click START');
-        // Do NOT set currentPomodoroInBreak yet - wait for user to click START
         state.currentPomodoroInBreak = -1;
         state.runState = 'idle';
         state.millisRemaining = breakMinutes * 60 * 1000;
         state.millisTotal = state.millisRemaining;
-        console.log('[Timer] Break ready. Yellow dot will appear when user clicks START.');
-  }
-  
-  updateUI();
-      sendStateUpdate(); // Notify toolbar
-    } else if (state.phase === 'shortbreak' || state.phase === 'longbreak') {
-      // Determine if this was a long break
-      const wasLongBreak = state.phase === 'longbreak';
-      
-      // Play appropriate break complete sound
-      playNotificationSound(wasLongBreak ? 'long-break-complete' : 'break-complete');
-      
-      // Show desktop notification
-      if (wasLongBreak) {
-        showDesktopNotification(
-          '☕ Long Break Complete!',
-          'Feeling refreshed? Time to focus again!',
-          'long-break-complete'
-        );
-      } else {
-        showDesktopNotification(
-          '☕ Break Complete!',
-          'Ready to get back to work?',
-          'break-complete'
-        );
       }
-      
-      // Break completed - mark pomodoro as fully complete (green dot)
-      console.log(`[Timer] Break completed for pomodoro ${state.currentPomodoroInBreak + 1}`);
-      
-      // Increment completed pomodoros (this turns the dot green)
+      updateUI();
+
+    } else if (state.phase === 'shortbreak' || state.phase === 'longbreak') {
+      const wasLongBreak = state.phase === 'longbreak';
+      playNotificationSound(wasLongBreak ? 'long-break-complete' : 'break-complete');
+      if (wasLongBreak) {
+        showDesktopNotification('☕ Long Break Complete!', 'Feeling refreshed? Time to focus again!', 'long-break-complete');
+      } else {
+        showDesktopNotification('☕ Break Complete!', 'Ready to get back to work?', 'break-complete');
+      }
+
       state.completedPomodoros++;
-      state.currentPomodoroInBreak = -1; // Clear yellow dot state
-      
-      console.log(`[Timer] Completed pomodoros: ${state.completedPomodoros}/4`);
-      
-      // Update break state
+      state.currentPomodoroInBreak = -1;
       state.isInBreakState = false;
-      
-      // Check if we've completed 4 full cycles (pomodoro + break)
+
       if (state.completedPomodoros >= 4) {
-        console.log('[Timer] 4 full cycles completed! Entering REFLECT period');
-        
-        // Show special celebration notification
-        showDesktopNotification(
-          '🌟 All 4 Pomodoros Complete!',
-          'Amazing work! You\'ve completed a full cycle. Time to reflect!',
-          'cycle-complete'
-        );
-        
+        showDesktopNotification('🌟 All 4 Pomodoros Complete!', 'Amazing work! Time to reflect!', 'cycle-complete');
         state.inReflectionPeriod = true;
         state.reflectionStartTime = Date.now();
         state.phase = 'reflect';
-        state.completedPomodoros = 4; // Keep at 4 to show all green dots
+        state.completedPomodoros = 4;
         state.runState = 'idle';
         state.millisRemaining = state.reflectionMinMinutes * 60 * 1000;
         state.millisTotal = state.millisRemaining;
-        
-        // Start reflection period countdown timer (updates every second)
         state.reflectionTimerIntervalId = setInterval(updateReflectionTimer, 1000);
-        
-        // Start reflection dot animation (Knight Rider style, changes dot every 500ms)
         state.reflectionAnimationIndex = 0;
         state.reflectionAnimationDirection = 1;
         state.reflectionAnimationIntervalId = setInterval(updateReflectionAnimation, 500);
-        
-        console.log('[Timer] Reflection period started with countdown and dot animation');
       } else {
-        // Transition to next pomodoro
         state.phase = 'focus';
-        
-        // Check auto-start pomodoros setting
         if (state.config.autoStartPomodoros) {
-          console.log('[Timer] Auto-start pomodoros enabled - starting next pomodoro automatically in Rust core');
-          // Start work session in Rust core
           const snapshotJson = rustCore.startWork();
           const snapshot = JSON.parse(snapshotJson);
           recordSessionStart(snapshot);
-          console.log('[Timer] Next pomodoro snapshot from Rust core:', snapshot);
           updateStateFromSnapshot(snapshot);
-          
           state.runState = 'running';
-          console.log('[Timer] Starting next pomodoro interval...');
-          // Start the timer interval
-          timerInterval = setInterval(tick, 250); // 4 ticks per second
-          console.log('[Timer] Pomodoro interval started. State:', { phase: state.phase, runState: state.runState, millisRemaining: state.millisRemaining });
+          timerInterval = setInterval(tick, 250);
         } else {
-          console.log('[Timer] Auto-start pomodoros disabled - waiting for user to click START');
           state.runState = 'idle';
           state.millisRemaining = state.config.workMinutes * 60 * 1000;
           state.millisTotal = state.millisRemaining;
         }
       }
-  
-  updateUI();
-      sendStateUpdate(); // Notify toolbar
+      updateUI();
     }
   } catch (error) {
-    console.error('========================================');
-    console.error('[Timer] ❌ ERROR IN onPhaseComplete():');
-    console.error(error);
-    console.error('Stack trace:', error.stack);
-    console.error('========================================');
+    console.error('[Timer] Error in onPhaseComplete:', error);
   }
 }
 
-/* ============================================
-   Note: Old pause/warm-up/cooldown logic removed
-   Breaks now transition directly from pomodoro completion
-   ============================================ */
-
-/* ============================================
-   UI Updates
-   ============================================ */
+// ============================================================
+// UI Updates
+// ============================================================
 
 function updateUI() {
   updateTimerDisplay();
@@ -1177,204 +876,212 @@ function updateUI() {
   updatePhaseLabel();
   updateStartPauseButton();
   updateBubbleClass();
+  updateMinuteQuarters();
+  updateNoteDotAnimation();
+  updatePomoHistory();
+}
+
+function getActiveNoteColor() {
+  if (notesState.activeNoteId) {
+    const note = notesState.notes.find(n => n.id === notesState.activeNoteId);
+    if (note && note.projectColor) return note.projectColor;
+  }
+  return '#e8572a';
+}
+
+function updatePomoHistory() {
+  const g = document.getElementById('pomo-outer-ring');
+  if (!g) return;
+  const R = 75, C = 2 * Math.PI * R, Q = C / 4, gap = 3;
+  let html = '';
+  for (let i = 0; i < 4; i++) {
+    const entry = state.pomodoroHistory[i];
+    if (!entry || !entry.length) continue;
+    let offset = i * Q + gap / 2;
+    for (const seg of entry) {
+      const arcLen = seg.fraction * (Q - gap);
+      html += `<circle cx="90" cy="90" r="${R}" fill="none" stroke="${seg.color}" stroke-width="9" stroke-dasharray="0 ${offset} ${arcLen} ${C}" stroke-linecap="butt" opacity="0.88"/>`;
+      offset += arcLen;
+    }
+  }
+  g.innerHTML = html;
+}
+
+function updateMinuteQuarters() {
+  const mqs = [elements.mq0, elements.mq1, elements.mq2, elements.mq3];
+  if (!elements.orbitDot || mqs.some(el => !el)) return;
+
+  const running = state.runState === 'running';
+  const active  = running || state.runState === 'paused';
+  const progress = state.millisTotal > 0 ? 1 - (state.millisRemaining / state.millisTotal) : 0;
+  const color = state.isInBreakState ? '#14b8a6' : getActiveNoteColor();
+
+  const R = 58;
+  const C = 2 * Math.PI * R; // ≈ 364.42
+  const Q = C / 4;           // ≈ 91.10
+  const gap = 1.5;           // half-gap between quarter arcs
+
+  mqs.forEach((el, i) => {
+    el.setAttribute('stroke', color);
+    if (!active) { el.style.opacity = '0'; return; }
+    const f = Math.max(0, Math.min(1, (progress - i * 0.25) * 4));
+    const startPos = i * Q + gap;
+    const fillLen  = f * (Q - gap * 2);
+    el.setAttribute('stroke-dasharray', `0 ${startPos} ${fillLen} ${C}`);
+    el.style.opacity = running ? '1' : '0.4';
+  });
+
+  const trails = [
+    { el: elements.trail3, span: Math.PI,       opacity: 0.08, width: 1   },
+    { el: elements.trail2, span: Math.PI / 3,   opacity: 0.25, width: 1.5 },
+    { el: elements.trail1, span: Math.PI / 10,  opacity: 0.58, width: 2.5 },
+    { el: elements.trail0, span: Math.PI / 28,  opacity: 0.88, width: 3.5 },
+  ];
+
+  if (running) {
+    const msElapsed = state.millisTotal - state.millisRemaining;
+    const a = ((msElapsed % 60000) / 60000) * 2 * Math.PI;
+
+    trails.forEach(({ el, span, opacity, width }) => {
+      if (!el) return;
+      let startAngle = a - span;
+      if (startAngle < 0) startAngle += 2 * Math.PI;
+      const startPos = (startAngle / (2 * Math.PI)) * C;
+      const arcLen   = span * R;
+      el.setAttribute('stroke', color);
+      el.setAttribute('stroke-width', String(width));
+      el.setAttribute('stroke-dasharray', `0 ${startPos} ${arcLen} ${C}`);
+      el.style.opacity = String(opacity);
+    });
+
+    elements.orbitDot.setAttribute('cx', String(90 + R * Math.cos(a)));
+    elements.orbitDot.setAttribute('cy', String(90 + R * Math.sin(a)));
+    elements.orbitDot.setAttribute('fill', color);
+    elements.orbitDot.style.opacity = '1';
+  } else {
+    trails.forEach(({ el }) => { if (el) el.style.opacity = '0'; });
+    elements.orbitDot.style.opacity = '0';
+  }
+}
+
+function updateNoteDotAnimation() {
+  if (!notesState.activeNoteId || !noteEls.notesList) return;
+  const dotEl = noteEls.notesList.querySelector(
+    `.timeline-note[data-note-id="${notesState.activeNoteId}"] .timeline-dot`
+  );
+  if (!dotEl) return;
+  const arc = dotEl.querySelector('.dot-arc');
+  const orb = dotEl.querySelector('.dot-orb');
+  if (!arc || !orb) return;
+
+  const progress = state.millisTotal > 0 ? 1 - (state.millisRemaining / state.millisTotal) : 0;
+  const circumference = 31.42; // 2π × 5
+  arc.style.strokeDashoffset = circumference * (1 - progress);
+  const dotColor = state.isInBreakState ? '#14b8a6' : getActiveNoteColor();
+  arc.style.stroke = dotColor;
+
+  const angle = progress * 2 * Math.PI - Math.PI / 2;
+  orb.setAttribute('cx', String(7 + 5 * Math.cos(angle)));
+  orb.setAttribute('cy', String(7 + 5 * Math.sin(angle)));
+  orb.style.fill = dotColor;
 }
 
 function updateTimerDisplay() {
   const totalSeconds = Math.ceil(state.millisRemaining / 1000);
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  
-  elements.timerDisplay.textContent = 
+  elements.timerDisplay.textContent =
     `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
 function updatePhaseIcon() {
-  const isIdle = state.runState === 'idle';
-  const isPaused = state.runState === 'paused' && !state.isInBreakState;
-  const isBreak = state.isInBreakState;
-  const isPauseBreak = state.isInWarmUp || state.isBlinking; // Pause-break states
   const isRunning = state.runState === 'running';
+  const isBreak = state.isInBreakState;
+  const isPauseBreak = state.isInWarmUp || state.isBlinking;
   const isReflection = state.inReflectionPeriod;
-  
+
   let iconSVG = '';
-  
   if (isReflection) {
-    // Blue star icon (celebration of completing 4 pomodoros!)
-    iconSVG = `
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="#3b82f6" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-      </svg>
-    `;
+    iconSVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="#3b82f6" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
   } else if (isPauseBreak || isBreak) {
-    // Coffee mug icon (during break, warm-up, or blinking)
-    iconSVG = `
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M18 8h1a4 4 0 0 1 0 8h-1"/>
-        <path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-        <line x1="6" y1="1" x2="6" y2="4"/>
-        <line x1="10" y1="1" x2="10" y2="4"/>
-        <line x1="14" y1="1" x2="14" y2="4"/>
-      </svg>
-    `;
+    iconSVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`;
   } else if (isRunning) {
-    // Open eye icon (timer is counting down)
-    iconSVG = `
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-        <circle cx="12" cy="12" r="3"/>
-      </svg>
-    `;
+    iconSVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
   } else {
-    // Closed eye icon (idle or paused)
-    iconSVG = `
-      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-        <line x1="1" y1="1" x2="23" y2="23"/>
-      </svg>
-    `;
+    iconSVG = `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
   }
-  
   elements.phaseIcon.innerHTML = iconSVG;
 }
 
 function updateProgressRing() {
-  const radius = 75; // Adjusted for smaller ring
+  if (!elements.progressCircle) return;
+  const radius = 75;
   const circumference = 2 * Math.PI * radius;
-  
   let progress = 0;
-  if (state.millisTotal > 0) {
-    progress = 1 - (state.millisRemaining / state.millisTotal);
-  }
-  
-  const offset = circumference * (1 - progress);
-  elements.progressCircle.style.strokeDashoffset = offset;
-  
-  // Update color based on phase
+  if (state.millisTotal > 0) progress = 1 - (state.millisRemaining / state.millisTotal);
+  elements.progressCircle.style.strokeDashoffset = circumference * (1 - progress);
+
   if (state.isInBreakState) {
-    elements.progressCircle.style.stroke = '#14b8a6'; // Teal for break
+    elements.progressCircle.style.stroke = '#14b8a6';
   } else if (state.phase === 'focus' && state.runState === 'running') {
-    elements.progressCircle.style.stroke = '#ef4444'; // Red for focus
+    elements.progressCircle.style.stroke = '#ef4444';
   } else {
-    elements.progressCircle.style.stroke = 'rgba(255, 255, 255, 0.3)'; // Gray for idle
+    elements.progressCircle.style.stroke = 'rgba(255, 255, 255, 0.3)';
   }
 }
 
 function updateProgressDots() {
   const dots = elements.progressDots.querySelectorAll('.dot');
-  
-  // Dot logic:
-  // - Gray (unlit) = Not started
-  // - Yellow (solid) = Break in progress OR warm-up/cool-down
-  // - Yellow (blinking) = Pause-break blinking phase
-  // - Green (solid) = Fully completed (pomodoro + break done)
-  
   dots.forEach((dot, index) => {
-    dot.className = 'dot'; // Reset classes
-    
-    // Priority 1: Reflection period (sequential blue animation)
-    if (state.inReflectionPeriod && index < 4) {
-      // Only the current animation index is lit blue, others are dimmed
-      if (index === state.reflectionAnimationIndex) {
-        dot.classList.add('lit-blue');
-      } else {
-        // Keep them slightly visible but dimmed (gray)
-        dot.classList.add('dim');
-      }
+    dot.className = 'dot';
+    if (state.inReflectionPeriod) {
+      dot.classList.add(index === state.reflectionAnimationIndex ? 'lit-blue' : 'dim');
       return;
     }
-    
-    // Priority 2: Cool-down phase (yellow dots clearing right-to-left)
     if (state.isInCooldown) {
-      // Preserve green dots for completed pomodoros
-      if (index < state.completedPomodoros) {
-        dot.classList.add('lit-green');
-      }
-      // Show yellow for dots that haven't been cleared yet
-      // cooldownProgress goes from 0-4, clearing from right to left
-      // When progress=0, all 4 yellow. When progress=1, dots 0-2 yellow. etc.
-      else if (index < (4 - state.cooldownProgress)) {
-        dot.classList.add('lit-yellow');
-      }
+      if (index < state.completedPomodoros) dot.classList.add('lit-green');
+      else if (index < (4 - state.cooldownProgress)) dot.classList.add('lit-yellow');
       return;
     }
-    
-    // Priority 3: Warm-up phase (yellow dots appearing left-to-right)
     if (state.isInWarmUp) {
-      // Preserve green dots for completed pomodoros
-      if (index < state.completedPomodoros) {
-        dot.classList.add('lit-green');
-      }
-      // Show yellow for dots that have appeared during warm-up
-      // warmUpProgress goes from 0-3, appearing left to right
-      else if (index <= state.warmUpProgress) {
-        dot.classList.add('lit-yellow');
-      }
+      if (index < state.completedPomodoros) dot.classList.add('lit-green');
+      else if (index <= state.warmUpProgress) dot.classList.add('lit-yellow');
       return;
     }
-    
-    // Priority 4: Blinking phase (all 4 yellow and blinking)
     if (state.isBlinking) {
-      // Preserve green dots for completed pomodoros
-      if (index < state.completedPomodoros) {
-        dot.classList.add('lit-green');
-      }
-      // All other dots blink yellow
-      else {
-        dot.classList.add('lit-yellow', 'blink');
-      }
+      if (index < state.completedPomodoros) dot.classList.add('lit-green');
+      else dot.classList.add('lit-yellow', 'blink');
       return;
     }
-    
-    // Priority 5: Regular break phase (single yellow dot for current break)
     if (state.isInBreakState && index === state.currentPomodoroInBreak) {
       dot.classList.add('lit-yellow');
       return;
     }
-    
-    // Priority 6: Completed pomodoros (green dots)
-    if (index < state.completedPomodoros) {
-        dot.classList.add('lit-green');
-      return;
-      }
-    
-    // Default: Unlit (gray)
+    if (index < state.completedPomodoros) dot.classList.add('lit-green');
   });
 }
 
 function updatePhaseLabel() {
   const isPaused = state.runState === 'paused' && !state.isInBreakState && !state.isInWarmUp && !state.isBlinking;
-  const isPauseBreak = state.isInWarmUp || state.isBlinking;
-  const isBreak = state.isInBreakState;
-  const isReflection = state.inReflectionPeriod;
-  
-  if (isReflection) {
+  if (state.inReflectionPeriod) {
     elements.phaseLabel.textContent = 'REFLECT';
-  } else if (isPauseBreak) {
-    elements.phaseLabel.textContent = 'BREAK'; // Show BREAK during pause-break warm-up/blinking
+  } else if (state.isInWarmUp || state.isBlinking) {
+    elements.phaseLabel.textContent = 'BREAK';
   } else if (isPaused) {
     elements.phaseLabel.textContent = 'PAUSE';
-  } else if (isBreak) {
+  } else if (state.isInBreakState) {
     elements.phaseLabel.textContent = 'BREAK';
   } else {
-    // Show "FOCUS" for any focus/work phase (running or idle)
     elements.phaseLabel.textContent = 'FOCUS';
   }
 }
 
 function updateStartPauseButton() {
-  console.log('[UI] updateStartPauseButton called - runState:', state.runState);
-  if (state.runState === 'running') {
-    elements.startPauseBtn.textContent = 'PAUSE';
-    console.log('[UI] Button set to: PAUSE');
-  } else {
-    elements.startPauseBtn.textContent = 'START';
-    console.log('[UI] Button set to: START (runState is "' + state.runState + '")');
-  }
+  elements.startPauseBtn.textContent = state.runState === 'running' ? 'PAUSE' : 'START';
 }
 
 function updateBubbleClass() {
   elements.bubble.className = 'bubble';
-  
   if (state.phase === 'focus' && state.runState === 'running') {
     elements.bubble.classList.add('phase-focus');
   } else if (state.isInBreakState) {
@@ -1384,272 +1091,76 @@ function updateBubbleClass() {
   }
 }
 
-/* ============================================
-   Timer Presets
-   ============================================ */
+// ============================================================
+// Timer Presets
+// ============================================================
 
 function applyPreset(workMinutes, breakMinutes) {
-  console.log(`[Preset] Applying ${workMinutes}/${breakMinutes} preset`);
-  
-  // Only allow preset changes when timer is idle or stopped
-  if (state.runState !== 'idle') {
-    console.log('[Preset] Timer is running, stopping first...');
-    handleReset();
-  }
-  
-  // Update config
+  if (state.runState !== 'idle') handleReset();
   state.config.workMinutes = workMinutes;
   state.config.shortBreakMinutes = breakMinutes;
-  
-  // Configure Rust core with preset values
-  rustCore.configure(
-    state.config.workMinutes,
-    state.config.shortBreakMinutes,
-    state.config.longBreakMinutes,
-    state.config.cycleLength
-  );
-  console.log('[Preset] ✓ Configured Rust core with preset values');
-  
-  // Update timer
+  rustCore.configure(state.config.workMinutes, state.config.shortBreakMinutes, state.config.longBreakMinutes, state.config.cycleLength);
   state.millisRemaining = workMinutes * 60 * 1000;
   state.millisTotal = state.millisRemaining;
-  
-  // Update UI
   updateUI();
-  
-  // Check if settings panel is open and update the UI elements
-  const isSettingsOpen = elements.panelsContainer && 
-                         elements.panelsContainer.classList.contains('show-settings');
-  
-  if (isSettingsOpen) {
-    console.log('[Preset] Settings panel is open - updating slider values');
-    updateSliderValues();
-  }
-  
-  // Save to localStorage and notify main process
+
+  const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('is-open');
+  if (isSettingsOpen) updateSliderValues();
   saveSettingsQuiet();
-  
-  console.log(`[Preset] Applied and saved: ${workMinutes} min work, ${breakMinutes} min break`);
 }
 
-/* ============================================
-   Settings Panel
-   ============================================ */
+// ============================================================
+// Settings Panel
+// ============================================================
 
 function showSettings() {
-  console.log('[Settings] Opening settings panel');
+  const overlay = document.getElementById('settings-overlay');
+  if (overlay) overlay.classList.add('is-open');
 
-  elements.panelsContainer.classList.remove('show-notes');
-  elements.panelsContainer.classList.add('show-settings');
-  
-  // Clean up ALL timer button focus indicators when opening settings
-  focusState.timerFocusableElements.forEach(el => {
-    if (el) el.classList.remove('keyboard-focus');
-  });
-  
-  // Reset to Duration tab by default
+  focusState.timerFocusableElements.forEach(el => { if (el) el.classList.remove('keyboard-focus'); });
   focusState.currentTabIndex = 0;
   focusState.settingsFocusIndex = 0;
   switchTab('duration');
-  
-  // Re-initialize focusable elements to ensure proper filtering
   initializeFocusManagement();
-  
-  // Add focus to first control in DURATION tab
+
   if (focusState.settingsFocusableElements.length > 0) {
     addFocusToSettingsControl(focusState.settingsFocusableElements[0]);
-    console.log('[Settings] Initial focus on:', focusState.settingsFocusableElements[0].name);
   }
-  
-  // Populate settings with current values
+
   updateSliderValues();
   elements.soundEnabledInput.checked = state.config.soundEnabled || false;
   elements.alwaysOnTopToggle.checked = state.config.alwaysOnTop || false;
   elements.autoStartBreaksInput.checked = state.config.autoStartBreaks !== undefined ? state.config.autoStartBreaks : true;
   elements.autoStartPomodorosInput.checked = state.config.autoStartPomodoros || false;
   elements.showNotificationsInput.checked = state.config.showNotifications !== undefined ? state.config.showNotifications : true;
-  
-  // Ensure close button is clickable by refreshing listener
-  setTimeout(() => {
-    const closeBtn = document.getElementById('close-settings-btn');
-    if (closeBtn) {
-      console.log('[Settings] Close button is in DOM and ready');
-      console.log('[Settings] Close button offsetParent:', closeBtn.offsetParent);
-      console.log('[Settings] Close button getBoundingClientRect:', closeBtn.getBoundingClientRect());
-    }
-  }, 50);
 }
 
 function hideSettings() {
-  console.log('[Settings] Closing settings panel');
-  
-  // Remove focus from current control
-  if (focusState.settingsFocusableElements.length > 0 && 
+  if (focusState.settingsFocusableElements.length > 0 &&
       focusState.settingsFocusableElements[focusState.settingsFocusIndex]) {
     removeFocusFromSettingsControl(focusState.settingsFocusableElements[focusState.settingsFocusIndex]);
   }
-  
-  // Auto-save settings when closing
+
   saveSettings();
-  
-  // Remove the show-settings class
-  if (elements.panelsContainer) {
-    elements.panelsContainer.classList.remove('show-settings');
-    console.log('[Settings] Removed show-settings class');
-    console.log('[Settings] Current classes:', elements.panelsContainer.className);
-  } else {
-    console.error('[Settings] panelsContainer element not found!');
-  }
-  
-  // Clean up ALL timer button focus indicators before resetting
-  focusState.timerFocusableElements.forEach(el => {
-    if (el) el.classList.remove('keyboard-focus');
-  });
-  
-  // Reset timer focus to START button (middle button, index 1) when returning to timer
-  // Apply visual focus immediately so user knows which button is selected
-  focusState.timerFocusIndex = 1;
-  if (focusState.timerFocusableElements[1]) {
-    focusState.timerFocusableElements[1].classList.add('keyboard-focus');
-    console.log('[Settings] Panel closed - timer focus reset to START button with visual indicator');
-  }
-}
 
-function showNotes() {
-  if (!elements.panelsContainer) return;
-  elements.panelsContainer.classList.remove('show-settings');
-  elements.panelsContainer.classList.add('show-notes');
-  setTimeout(() => {
-    if (elements.notesQuickAddInput) {
-      elements.notesQuickAddInput.focus();
-    }
-  }, 0);
-}
+  const overlay = document.getElementById('settings-overlay');
+  if (overlay) overlay.classList.remove('is-open');
 
-function hideNotes() {
-  if (!elements.panelsContainer) return;
-  elements.panelsContainer.classList.remove('show-notes');
+  focusState.timerFocusableElements.forEach(el => { if (el) el.classList.remove('keyboard-focus'); });
   focusState.timerFocusIndex = 1;
   if (focusState.timerFocusableElements[1]) {
     focusState.timerFocusableElements[1].classList.add('keyboard-focus');
   }
-}
-
-function loadNotes() {
-  ipcRenderer.invoke('notes-list').then((res) => {
-    if (!res || !res.ok) {
-      console.warn('[Notes] Failed to load notes:', res && res.error);
-      return;
-    }
-    notesState.notes = Array.isArray(res.notes) ? res.notes : [];
-    renderNotes();
-  }).catch((err) => {
-    console.warn('[Notes] notes-list IPC error:', err);
-  });
-}
-
-function renderNotes() {
-  if (!elements.notesList) return;
-  if (!notesState.notes.length) {
-    elements.notesList.innerHTML = '<div class="stats-sub">No notes yet</div>';
-    return;
-  }
-
-  const html = notesState.notes.map((note) => {
-    const taskRows = (note.tasks || []).map((task) => `
-      <label class="note-task ${task.done ? 'done' : ''}">
-        <input type="checkbox" data-task-id="${task.id}" ${task.done ? 'checked' : ''} />
-        <span class="note-task-text">${escapeHtml(task.text)}</span>
-      </label>
-    `).join('');
-
-    return `
-      <div class="note-item" data-note-id="${note.id}">
-        <div class="note-title">${escapeHtml(note.title)}</div>
-        <div class="note-tasks">${taskRows || '<div class="stats-sub">No tasks</div>'}</div>
-      </div>
-    `;
-  }).join('');
-
-  elements.notesList.innerHTML = html;
-  elements.notesList.querySelectorAll('input[type="checkbox"][data-task-id]').forEach((input) => {
-    input.addEventListener('change', onTaskToggle);
-  });
-}
-
-function createNoteFromInput() {
-  const input = elements.notesQuickAddInput;
-  if (!input) return;
-  const title = input.value.trim();
-  if (!title) return;
-
-  ipcRenderer.invoke('note-create', { title, bodyMd: '' }).then((res) => {
-    if (!res || !res.ok || !res.note) {
-      console.warn('[Notes] note-create failed:', res && res.error);
-      return;
-    }
-    input.value = '';
-    notesState.notes = [res.note, ...notesState.notes];
-    renderNotes();
-  }).catch((err) => {
-    console.warn('[Notes] note-create IPC error:', err);
-  });
-}
-
-function onTaskToggle(event) {
-  const taskId = parseInt(event.target.dataset.taskId, 10);
-  const done = !!event.target.checked;
-  if (!taskId) return;
-
-  ipcRenderer.invoke('task-toggle', { taskId, done }).then((res) => {
-    if (!res || !res.ok) {
-      console.warn('[Notes] task-toggle failed:', res && res.error);
-      return;
-    }
-    for (const note of notesState.notes) {
-      const task = (note.tasks || []).find((t) => t.id === taskId);
-      if (task) {
-        task.done = done;
-        break;
-      }
-    }
-    renderNotes();
-  }).catch((err) => {
-    console.warn('[Notes] task-toggle IPC error:', err);
-  });
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 function switchTab(tabName) {
-  // Update tab buttons
   document.querySelectorAll('.settings-tab').forEach(tab => {
-    if (tab.dataset.tab === tabName) {
-      tab.classList.add('active');
-    } else {
-      tab.classList.remove('active');
-    }
+    tab.classList.toggle('active', tab.dataset.tab === tabName);
   });
-
-  // Update tab content
   document.querySelectorAll('.settings-tab-content').forEach(content => {
-    if (content.id === `content-${tabName}`) {
-      content.classList.add('active');
-    } else {
-      content.classList.remove('active');
-    }
+    content.classList.toggle('active', content.id === `content-${tabName}`);
   });
-
-  if (tabName === 'stats') {
-    refreshStats();
-  }
+  if (tabName === 'stats') refreshStats();
 }
 
 function formatFocusDuration(ms) {
@@ -1663,140 +1174,58 @@ function formatFocusDuration(ms) {
 
 function refreshStats() {
   ipcRenderer.invoke('stats-get').then((res) => {
-    if (!res || !res.ok) {
-      console.warn('[Stats] Failed to fetch stats:', res && res.error);
-      return;
-    }
+    if (!res || !res.ok) return;
     renderStats(res.stats);
-  }).catch((err) => {
-    console.warn('[Stats] stats-get IPC error:', err);
-  });
+  }).catch((err) => console.warn('[Stats] stats-get IPC error:', err));
 }
 
 function renderStats(stats) {
   if (!stats) return;
-
-  if (elements.statsTodayFocus) {
-    elements.statsTodayFocus.textContent = formatFocusDuration(stats.todayFocusMs);
-  }
+  if (elements.statsTodayFocus) elements.statsTodayFocus.textContent = formatFocusDuration(stats.todayFocusMs);
   if (elements.statsTodayPomos) {
     const n = stats.todayPomodoros;
     elements.statsTodayPomos.textContent = `${n} pomodoro${n === 1 ? '' : 's'}`;
   }
-  if (elements.statsStreak) {
-    elements.statsStreak.textContent = String(stats.streak);
-  }
-  if (elements.statsStreakSub) {
-    elements.statsStreakSub.textContent = stats.streak === 1 ? 'day' : 'days';
-  }
+  if (elements.statsStreak) elements.statsStreak.textContent = String(stats.streak);
+  if (elements.statsStreakSub) elements.statsStreakSub.textContent = stats.streak === 1 ? 'day' : 'days';
 
   if (elements.statsChart && Array.isArray(stats.days)) {
     const maxMs = stats.days.reduce((m, d) => Math.max(m, d.focusMs || 0), 0);
     const todayIdx = stats.days.length - 1;
-    const html = stats.days.map((d, i) => {
+    elements.statsChart.innerHTML = stats.days.map((d, i) => {
       const heightPct = maxMs > 0 ? Math.max(2, Math.round((d.focusMs / maxMs) * 100)) : 0;
-      const isEmpty = !d.focusMs;
-      const isToday = i === todayIdx;
       const cls = ['stats-bar-fill'];
-      if (isEmpty) cls.push('empty');
-      else if (isToday) cls.push('today');
-      const titleMs = formatFocusDuration(d.focusMs);
+      if (!d.focusMs) cls.push('empty');
+      else if (i === todayIdx) cls.push('today');
       return `
-        <div class="stats-bar-col" title="${d.label}: ${titleMs} (${d.pomodoros} pomo)">
+        <div class="stats-bar-col" title="${d.label}: ${formatFocusDuration(d.focusMs)} (${d.pomodoros} pomo)">
           <div class="stats-bar-fill-wrap">
-            <div class="${cls.join(' ')}" style="height: ${heightPct}%"></div>
+            <div class="${cls.join(' ')}" style="height:${heightPct}%"></div>
           </div>
           <div class="stats-bar-label">${escapeHtml(d.label[0] || '')}</div>
         </div>
       `;
     }).join('');
-    elements.statsChart.innerHTML = html;
   }
 }
 
-function escapeHtml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 function setupSliderListeners() {
-  // Work minutes buttons
-  elements.workMinutesPrev.addEventListener('click', () => {
-    let value = parseInt(elements.workMinutesValue.textContent);
-    if (value > 5) {
-      value -= 5;
-      elements.workMinutesValue.textContent = value.toString().padStart(2, '0');
-      autoSaveSettings();
-    }
-  });
-  elements.workMinutesNext.addEventListener('click', () => {
-    let value = parseInt(elements.workMinutesValue.textContent);
-    if (value < 90) {
-      value += 5;
-      elements.workMinutesValue.textContent = value.toString().padStart(2, '0');
-      autoSaveSettings();
-    }
-  });
-  
-  // Short break buttons
-  elements.shortBreakMinutesPrev.addEventListener('click', () => {
-    let value = parseInt(elements.shortBreakMinutesValue.textContent);
-    if (value > 1) {
-      value -= 1;
-      elements.shortBreakMinutesValue.textContent = value.toString().padStart(2, '0');
-      autoSaveSettings();
-    }
-  });
-  elements.shortBreakMinutesNext.addEventListener('click', () => {
-    let value = parseInt(elements.shortBreakMinutesValue.textContent);
-    if (value < 30) {
-      value += 1;
-      elements.shortBreakMinutesValue.textContent = value.toString().padStart(2, '0');
-      autoSaveSettings();
-    }
-  });
-  
-  // Long break buttons
-  elements.longBreakMinutesPrev.addEventListener('click', () => {
-    let value = parseInt(elements.longBreakMinutesValue.textContent);
-    if (value > 5) {
-      value -= 5;
-      elements.longBreakMinutesValue.textContent = value;
-      autoSaveSettings();
-    }
-  });
-  elements.longBreakMinutesNext.addEventListener('click', () => {
-    let value = parseInt(elements.longBreakMinutesValue.textContent);
-    if (value < 60) {
-      value += 5;
-      elements.longBreakMinutesValue.textContent = value;
-      autoSaveSettings();
-    }
-  });
-  
-  // Cycle length buttons
-  elements.cycleLengthPrev.addEventListener('click', () => {
-    let value = parseInt(elements.cycleLengthValue.textContent);
-    if (value > 1) {
-      value -= 1;
-      elements.cycleLengthValue.textContent = value;
-      autoSaveSettings();
-    }
-  });
-  elements.cycleLengthNext.addEventListener('click', () => {
-    let value = parseInt(elements.cycleLengthValue.textContent);
-    if (value < 10) {
-      value += 1;
-      elements.cycleLengthValue.textContent = value;
-      autoSaveSettings();
-    }
-  });
-  
-  // Toggle switches
+  const makeAdj = (valueEl, delta, min, max) => () => {
+    let v = parseInt(valueEl.textContent, 10) + delta;
+    v = Math.max(min, Math.min(max, v));
+    valueEl.textContent = v.toString().padStart(2, '0');
+    autoSaveSettings();
+  };
+
+  elements.workMinutesPrev.addEventListener('click', makeAdj(elements.workMinutesValue, -5, 5, 90));
+  elements.workMinutesNext.addEventListener('click', makeAdj(elements.workMinutesValue, 5, 5, 90));
+  elements.shortBreakMinutesPrev.addEventListener('click', makeAdj(elements.shortBreakMinutesValue, -1, 1, 30));
+  elements.shortBreakMinutesNext.addEventListener('click', makeAdj(elements.shortBreakMinutesValue, 1, 1, 30));
+  elements.longBreakMinutesPrev.addEventListener('click', makeAdj(elements.longBreakMinutesValue, -5, 5, 60));
+  elements.longBreakMinutesNext.addEventListener('click', makeAdj(elements.longBreakMinutesValue, 5, 5, 60));
+  elements.cycleLengthPrev.addEventListener('click', makeAdj(elements.cycleLengthValue, -1, 1, 10));
+  elements.cycleLengthNext.addEventListener('click', makeAdj(elements.cycleLengthValue, 1, 1, 10));
+
   elements.soundEnabledInput.addEventListener('change', autoSaveSettings);
   elements.autoStartBreaksInput.addEventListener('change', autoSaveSettings);
   elements.autoStartPomodorosInput.addEventListener('change', autoSaveSettings);
@@ -1805,34 +1234,22 @@ function setupSliderListeners() {
 }
 
 function updateSliderValues() {
-  console.log('[Settings] Updating slider values from state.config:', state.config);
   elements.workMinutesValue.textContent = state.config.workMinutes.toString().padStart(2, '0');
   elements.shortBreakMinutesValue.textContent = state.config.shortBreakMinutes.toString().padStart(2, '0');
   elements.longBreakMinutesValue.textContent = state.config.longBreakMinutes;
   elements.cycleLengthValue.textContent = state.config.cycleLength;
-  console.log('[Settings] Slider values updated - Work:', elements.workMinutesValue.textContent, 
-              'Short Break:', elements.shortBreakMinutesValue.textContent,
-              'Long Break:', elements.longBreakMinutesValue.textContent,
-              'Cycle:', elements.cycleLengthValue.textContent);
 }
 
 function autoSaveSettings() {
-  // Debounce auto-save to avoid excessive saves
   clearTimeout(autoSaveSettings.timeout);
-  autoSaveSettings.timeout = setTimeout(() => {
-    saveSettingsQuiet();
-  }, 500);
+  autoSaveSettings.timeout = setTimeout(saveSettingsQuiet, 500);
 }
 
 function saveSettings() {
   saveSettingsQuiet();
-  console.log('[Settings] Saved and closed');
 }
 
 function saveSettingsQuiet() {
-  console.log('[Settings] ========== SAVING SETTINGS ==========');
-  
-  // Read values from display elements
   const newConfig = {
     workMinutes: parseInt(elements.workMinutesValue.textContent, 10),
     shortBreakMinutes: parseInt(elements.shortBreakMinutesValue.textContent, 10),
@@ -1844,112 +1261,51 @@ function saveSettingsQuiet() {
     showNotifications: elements.showNotificationsInput.checked,
     alwaysOnTop: elements.alwaysOnTopToggle.checked,
   };
-  
-  console.log('[Settings] New configuration to save:', newConfig);
-  console.log('[Settings] Timer state:', { runState: state.runState, millisRemaining: state.millisRemaining });
-  
-  // Update state
+
   state.config = newConfig;
-  
-  // Configure Rust core with new settings
-  rustCore.configure(
-    newConfig.workMinutes,
-    newConfig.shortBreakMinutes,
-    newConfig.longBreakMinutes,
-    newConfig.cycleLength
-  );
-  console.log('[Settings] ✓ Configured Rust core with new settings');
-  
-  // Always update timer display if idle (not running or in break)
-  // This ensures the timer reflects the new duration immediately
+  rustCore.configure(newConfig.workMinutes, newConfig.shortBreakMinutes, newConfig.longBreakMinutes, newConfig.cycleLength);
+
   if (state.runState === 'idle') {
-    const oldMillis = state.millisRemaining;
     state.millisRemaining = newConfig.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
     updateProgressRing();
-    console.log('[Settings] ✓ Timer was IDLE - Updated timer:', oldMillis, '→', state.millisRemaining, '(', newConfig.workMinutes, 'minutes)');
-  } else {
-    console.log('[Settings] ⚠ Timer is NOT idle (runState:', state.runState, ') - duration will apply on next reset');
   }
-  
-  // Save to localStorage
+
   localStorage.setItem('focus-config', JSON.stringify(newConfig));
-  console.log('[Settings] Saved to localStorage');
-  
-  // Send to main process for immediate window update
   ipcRenderer.send('settings-save', newConfig);
 }
 
 function loadSettings() {
   const saved = localStorage.getItem('focus-config');
-  console.log('[Settings] ========== LOADING SETTINGS ==========');
-  console.log('[Settings] Raw localStorage value:', saved);
-  console.log('[Settings] Current state.millisRemaining BEFORE load:', state.millisRemaining);
-  
   if (saved) {
     try {
       const config = JSON.parse(saved);
-      console.log('[Settings] ✓ Parsed config from localStorage:', config);
-      
       state.config = {
-        workMinutes: (config.workMinutes !== undefined && config.workMinutes !== null) ? config.workMinutes : 25,
-        shortBreakMinutes: (config.shortBreakMinutes !== undefined && config.shortBreakMinutes !== null) ? config.shortBreakMinutes : 5,
-        longBreakMinutes: (config.longBreakMinutes !== undefined && config.longBreakMinutes !== null) ? config.longBreakMinutes : 15,
-        cycleLength: (config.cycleLength !== undefined && config.cycleLength !== null) ? config.cycleLength : 4,
-        soundEnabled: config.soundEnabled !== undefined ? config.soundEnabled : true,
-        autoStartBreaks: config.autoStartBreaks !== undefined ? config.autoStartBreaks : true,
-        autoStartPomodoros: config.autoStartPomodoros !== undefined ? config.autoStartPomodoros : false,
-        showNotifications: config.showNotifications !== undefined ? config.showNotifications : true,
-        alwaysOnTop: config.alwaysOnTop !== undefined ? config.alwaysOnTop : false,
+        workMinutes: config.workMinutes ?? 25,
+        shortBreakMinutes: config.shortBreakMinutes ?? 5,
+        longBreakMinutes: config.longBreakMinutes ?? 15,
+        cycleLength: config.cycleLength ?? 4,
+        soundEnabled: config.soundEnabled ?? true,
+        autoStartBreaks: config.autoStartBreaks ?? true,
+        autoStartPomodoros: config.autoStartPomodoros ?? false,
+        showNotifications: config.showNotifications ?? true,
+        alwaysOnTop: config.alwaysOnTop ?? false,
       };
-      console.log('[Settings] ✓ Applied configuration to state.config:', state.config);
-      
-      // Configure Rust core with loaded settings
-      rustCore.configure(
-        state.config.workMinutes,
-        state.config.shortBreakMinutes,
-        state.config.longBreakMinutes,
-        state.config.cycleLength
-      );
-      console.log('[Settings] ✓ Configured Rust core with user settings');
-      
-      // Apply loaded settings to timer - always update on startup
-      const oldMillis = state.millisRemaining;
+      rustCore.configure(state.config.workMinutes, state.config.shortBreakMinutes, state.config.longBreakMinutes, state.config.cycleLength);
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
       state.millisTotal = state.millisRemaining;
-      console.log('[Settings] ✓ Updated timer: ', oldMillis, '→', state.millisRemaining, '(', state.config.workMinutes, 'minutes )');
       updateTimerDisplay();
       updateProgressRing();
-      console.log('[Settings] ✓ Updated display with new duration');
-      
-      // Send to main process on startup
       ipcRenderer.send('settings-save', state.config);
     } catch (e) {
-      console.error('[Settings] Failed to load from localStorage:', e);
-      // Fall back to defaults and configure Rust core
-      rustCore.configure(
-        state.config.workMinutes,
-        state.config.shortBreakMinutes,
-        state.config.longBreakMinutes,
-        state.config.cycleLength
-      );
+      console.error('[Settings] Failed to load:', e);
+      rustCore.configure(state.config.workMinutes, state.config.shortBreakMinutes, state.config.longBreakMinutes, state.config.cycleLength);
       state.millisRemaining = state.config.workMinutes * 60 * 1000;
       state.millisTotal = state.millisRemaining;
-      updateTimerDisplay();
-      updateProgressRing();
-      console.log('[Settings] Using defaults after parse error');
     }
   } else {
-    // No saved settings, set initial timer with defaults
-    console.log('[Settings] No saved settings found, using defaults:', state.config);
-    rustCore.configure(
-      state.config.workMinutes,
-      state.config.shortBreakMinutes,
-      state.config.longBreakMinutes,
-      state.config.cycleLength
-    );
-    console.log('[Settings] ✓ Configured Rust core with default settings');
+    rustCore.configure(state.config.workMinutes, state.config.shortBreakMinutes, state.config.longBreakMinutes, state.config.cycleLength);
     state.millisRemaining = state.config.workMinutes * 60 * 1000;
     state.millisTotal = state.millisRemaining;
     updateTimerDisplay();
@@ -1957,28 +1313,22 @@ function loadSettings() {
   }
 }
 
-/* ============================================
-   Window Collapse/Expand Handling
-   ============================================ */
+// ============================================================
+// Window Collapse/Expand
+// ============================================================
 
-// Listen for collapse/expand events from main process
 ipcRenderer.on('window-collapsed', (event, data) => {
-  console.log('[Window] Window collapsed to', data.edge);
   showCollapsedHandle(data.edge);
 });
 
 ipcRenderer.on('window-expanded', () => {
-  console.log('[Window] Window expanded');
   hideCollapsedHandle();
 });
 
 function showCollapsedHandle(edge) {
-  // Hide main content
-  if (elements.panelsContainer) {
-    elements.panelsContainer.style.display = 'none';
-  }
-  
-  // Show collapsed handle
+  const app = document.getElementById('app');
+  if (app) app.style.display = 'none';
+
   let handle = document.getElementById('collapsed-handle');
   if (!handle) {
     handle = document.createElement('div');
@@ -1986,334 +1336,1040 @@ function showCollapsedHandle(edge) {
     handle.innerHTML = '<div class="handle-grip">⋮⋮⋮</div>';
     document.body.appendChild(handle);
   }
-  
-  // Style based on edge
   handle.className = 'collapsed-handle collapsed-handle-' + edge;
   handle.style.display = 'flex';
 }
 
 function hideCollapsedHandle() {
-  // Show main content
-  if (elements.panelsContainer) {
-    elements.panelsContainer.style.display = 'block';
-  }
-  
-  // Hide collapsed handle
+  const app = document.getElementById('app');
+  if (app) app.style.display = 'flex';
+
   const handle = document.getElementById('collapsed-handle');
-  if (handle) {
-    handle.style.display = 'none';
-  }
+  if (handle) handle.style.display = 'none';
 }
 
-// Add double-click handler to window
 document.addEventListener('dblclick', (event) => {
-  // Don't trigger on buttons or inputs
-  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') {
-    return;
-  }
-  
-  console.log('[Window] Double-click detected');
+  if (event.target.tagName === 'BUTTON' || event.target.tagName === 'INPUT') return;
   ipcRenderer.send('window-double-click');
 });
 
-/* ============================================
-   Keyboard Navigation System
-   ============================================ */
+// ============================================================
+// Keyboard Navigation
+// ============================================================
 
 function initializeFocusManagement() {
-  console.log('[Focus] Initializing keyboard navigation');
-  
-  // Timer screen focusable elements (horizontal navigation)
-  // Order matches visual layout: Reset (left) - Start (center) - Settings (right)
   focusState.timerFocusableElements = [
     elements.resetBtn,
     elements.startPauseBtn,
     elements.settingsBtn,
   ].filter(el => el !== null);
-  
-  // Set default focus to START button (middle button, index 1)
+
   focusState.timerFocusIndex = 1;
-  
-  // Settings screen focusable elements (vertical navigation)
-  // These are the interactive controls that can be navigated, organized by tab
+
   const allSettingsControls = [
-    // DURATION tab
-    { type: 'duration', tab: 'duration', name: 'Work Duration', valueEl: elements.workMinutesValue, prevBtn: elements.workMinutesPrev, nextBtn: elements.workMinutesNext, min: 5, max: 90, step: 5 },
-    { type: 'duration', tab: 'duration', name: 'Short Break', valueEl: elements.shortBreakMinutesValue, prevBtn: elements.shortBreakMinutesPrev, nextBtn: elements.shortBreakMinutesNext, min: 1, max: 30, step: 1 },
-    { type: 'duration', tab: 'duration', name: 'Long Break', valueEl: elements.longBreakMinutesValue, prevBtn: elements.longBreakMinutesPrev, nextBtn: elements.longBreakMinutesNext, min: 5, max: 60, step: 5 },
-    { type: 'duration', tab: 'duration', name: 'Cycle Length', valueEl: elements.cycleLengthValue, prevBtn: elements.cycleLengthPrev, nextBtn: elements.cycleLengthNext, min: 1, max: 10, step: 1 },
-    // OPTIONS tab
-    { type: 'toggle', tab: 'options', name: 'Sound', element: elements.soundEnabledInput },
-    { type: 'toggle', tab: 'options', name: 'Auto-start Breaks', element: elements.autoStartBreaksInput },
-    { type: 'toggle', tab: 'options', name: 'Auto-start Pomodoros', element: elements.autoStartPomodorosInput },
-    { type: 'toggle', tab: 'options', name: 'Always on Top', element: elements.alwaysOnTopToggle },
-    // NOTIFICATIONS tab
+    { type: 'duration', tab: 'duration', name: 'Work Duration',   valueEl: elements.workMinutesValue,       prevBtn: elements.workMinutesPrev,       nextBtn: elements.workMinutesNext,       min: 5,  max: 90,  step: 5 },
+    { type: 'duration', tab: 'duration', name: 'Short Break',     valueEl: elements.shortBreakMinutesValue, prevBtn: elements.shortBreakMinutesPrev, nextBtn: elements.shortBreakMinutesNext, min: 1,  max: 30,  step: 1 },
+    { type: 'duration', tab: 'duration', name: 'Long Break',      valueEl: elements.longBreakMinutesValue,  prevBtn: elements.longBreakMinutesPrev,  nextBtn: elements.longBreakMinutesNext,  min: 5,  max: 60,  step: 5 },
+    { type: 'duration', tab: 'duration', name: 'Cycle Length',    valueEl: elements.cycleLengthValue,       prevBtn: elements.cycleLengthPrev,       nextBtn: elements.cycleLengthNext,       min: 1,  max: 10,  step: 1 },
+    { type: 'toggle', tab: 'options', name: 'Sound',                  element: elements.soundEnabledInput },
+    { type: 'toggle', tab: 'options', name: 'Auto-start Breaks',      element: elements.autoStartBreaksInput },
+    { type: 'toggle', tab: 'options', name: 'Auto-start Pomodoros',   element: elements.autoStartPomodorosInput },
+    { type: 'toggle', tab: 'options', name: 'Always on Top',          element: elements.alwaysOnTopToggle },
     { type: 'toggle', tab: 'notifications', name: 'Show Notifications', element: elements.showNotificationsInput },
-  ].filter(item => {
-    if (item.type === 'duration') {
-      return item.valueEl !== null;
-    } else {
-      return item.element !== null;
-    }
-  });
-  
-  // Store all controls
+  ].filter(item => item.type === 'duration' ? item.valueEl !== null : item.element !== null);
+
   focusState.allSettingsControls = allSettingsControls;
-  
-  // Filter to current tab
   focusState.settingsFocusableElements = allSettingsControls.filter(
     item => item.tab === focusState.tabs[focusState.currentTabIndex]
   );
-  
-  console.log(`[Focus] Initialized ${focusState.timerFocusableElements.length} timer controls`);
-  console.log(`[Focus] Initialized ${focusState.allSettingsControls.length} total settings controls (${focusState.settingsFocusableElements.length} in current tab: ${focusState.tabs[focusState.currentTabIndex]})`);
 }
 
 function handleKeyboardNavigation(e) {
-  const isSettingsOpen = elements.panelsContainer && 
-                        elements.panelsContainer.classList.contains('show-settings');
-  const isNotesOpen = elements.panelsContainer &&
-                      elements.panelsContainer.classList.contains('show-notes');
-  
+  const isSettingsOpen = document.getElementById('settings-overlay')?.classList.contains('is-open') ?? false;
+
   focusState.currentContext = isSettingsOpen ? 'settings' : 'timer';
-  
-  // Escape key: Close settings if open
+
   if (e.key === 'Escape' || e.keyCode === 27) {
     if (isSettingsOpen) {
-      console.log('[Keyboard] Escape pressed - closing settings');
       e.preventDefault();
       e.stopPropagation();
       hideSettings();
       return;
     }
-    if (isNotesOpen) {
-      console.log('[Keyboard] Escape pressed - closing notes');
-      e.preventDefault();
-      e.stopPropagation();
-      hideNotes();
-      return;
-    }
   }
-  
-  // Tab key: Cycle through settings tabs ONLY (never exit to timer)
-  if (e.key === 'Tab' || e.keyCode === 9) {
-    if (isSettingsOpen) {
-      e.preventDefault();
-      e.stopPropagation();
-      console.log(`[Keyboard] Tab key pressed in settings - cycling tabs (Shift=${e.shiftKey}), current tab: ${focusState.tabs[focusState.currentTabIndex]}`);
-      cycleSettingsTabs(e.shiftKey); // Shift+Tab goes backwards
-      return;
-    }
-  }
-  
-  // Arrow key navigation
-  if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+
+  if ((e.key === 'Tab' || e.keyCode === 9) && isSettingsOpen) {
     e.preventDefault();
     e.stopPropagation();
-    
+    cycleSettingsTabs(e.shiftKey);
+    return;
+  }
+
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+    // Only handle timer navigation here — notes nav is handled by separate listener
     if (focusState.currentContext === 'settings') {
+      e.preventDefault();
+      e.stopPropagation();
       handleSettingsNavigation(e.key);
     } else {
-      handleTimerNavigation(e.key);
+      // Timer navigation only when in input context
+      const active = document.activeElement;
+      const isInInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+      if (!isInInput) {
+        // Notes keydown listener handles ArrowUp/Down/Left/Right; timer nav uses Left/Right
+        // We let the notes handler take precedence, no action here
+      }
     }
     return;
   }
-  
-  // Space bar activation
-  if (e.key === ' ' || e.key === 'Spacebar' || e.keyCode === 32) {
-    if (focusState.currentContext === 'timer') {
-      e.preventDefault();
-      e.stopPropagation();
-      activateTimerControl();
-      return;
-    } else if (focusState.currentContext === 'settings') {
-      e.preventDefault();
-      e.stopPropagation();
-      activateSettingsControl();
-      return;
-    }
+
+  if ((e.key === ' ' || e.keyCode === 32) && focusState.currentContext === 'settings') {
+    e.preventDefault();
+    e.stopPropagation();
+    activateSettingsControl();
+    return;
   }
-  
-  // Enter key - same as space for activation
-  if (e.key === 'Enter' || e.keyCode === 13) {
-    if (focusState.currentContext === 'timer') {
-      e.preventDefault();
-      e.stopPropagation();
-      activateTimerControl();
-      return;
-    }
+
+  if ((e.key === 'Enter' || e.keyCode === 13) && focusState.currentContext === 'timer') {
+    e.preventDefault();
+    e.stopPropagation();
+    activateTimerControl();
+    return;
   }
 }
 
 function handleTimerNavigation(key) {
-  const elements = focusState.timerFocusableElements;
-  if (elements.length === 0) return;
-  
-  // Remove focus from current element
-  if (elements[focusState.timerFocusIndex]) {
-    elements[focusState.timerFocusIndex].classList.remove('keyboard-focus');
-  }
-  
-  // Navigate horizontally
-  if (key === 'ArrowLeft') {
-    focusState.timerFocusIndex = (focusState.timerFocusIndex - 1 + elements.length) % elements.length;
-  } else if (key === 'ArrowRight') {
-    focusState.timerFocusIndex = (focusState.timerFocusIndex + 1) % elements.length;
-  }
-  
-  // Add focus to new element
-  elements[focusState.timerFocusIndex].classList.add('keyboard-focus');
-  console.log(`[Keyboard] Timer focus: ${focusState.timerFocusIndex} (${elements[focusState.timerFocusIndex].textContent})`);
+  const els = focusState.timerFocusableElements;
+  if (!els.length) return;
+  if (els[focusState.timerFocusIndex]) els[focusState.timerFocusIndex].classList.remove('keyboard-focus');
+  if (key === 'ArrowLeft')  focusState.timerFocusIndex = (focusState.timerFocusIndex - 1 + els.length) % els.length;
+  else if (key === 'ArrowRight') focusState.timerFocusIndex = (focusState.timerFocusIndex + 1) % els.length;
+  els[focusState.timerFocusIndex].classList.add('keyboard-focus');
 }
 
 function handleSettingsNavigation(key) {
   const controls = focusState.settingsFocusableElements;
-  const currentTab = focusState.tabs[focusState.currentTabIndex];
-  
-  console.log(`[Keyboard] Settings navigation: key=${key}, tab=${currentTab}, controls=${controls.length}, focusIndex=${focusState.settingsFocusIndex}`);
-  
-  if (controls.length === 0) {
-    console.warn('[Keyboard] No focusable controls in current tab!');
-    return;
-  }
-  
+  if (!controls.length) return;
   const currentControl = controls[focusState.settingsFocusIndex];
-  
-  // Vertical navigation (Up/Down)
+
   if (key === 'ArrowUp' || key === 'ArrowDown') {
-    // Remove focus from current control
     removeFocusFromSettingsControl(currentControl);
-    
-    if (key === 'ArrowUp') {
-      focusState.settingsFocusIndex = (focusState.settingsFocusIndex - 1 + controls.length) % controls.length;
-    } else {
-      focusState.settingsFocusIndex = (focusState.settingsFocusIndex + 1) % controls.length;
-    }
-    
-    // Add focus to new control
-    const newControl = controls[focusState.settingsFocusIndex];
-    addFocusToSettingsControl(newControl);
-    console.log(`[Keyboard] Settings focus moved to: ${focusState.settingsFocusIndex}/${controls.length} (${newControl.name})`);
+    if (key === 'ArrowUp') focusState.settingsFocusIndex = (focusState.settingsFocusIndex - 1 + controls.length) % controls.length;
+    else focusState.settingsFocusIndex = (focusState.settingsFocusIndex + 1) % controls.length;
+    addFocusToSettingsControl(controls[focusState.settingsFocusIndex]);
   }
-  
-  // Horizontal navigation (Left/Right) - adjust current control
+
   if (key === 'ArrowLeft' || key === 'ArrowRight') {
     if (currentControl.type === 'duration') {
-      // Increment/decrement duration
-      const delta = (key === 'ArrowRight') ? currentControl.step : -currentControl.step;
-      adjustDurationValue(currentControl, delta);
+      adjustDurationValue(currentControl, key === 'ArrowRight' ? currentControl.step : -currentControl.step);
     } else if (currentControl.type === 'toggle') {
-      // Toggle the checkbox
       currentControl.element.checked = !currentControl.element.checked;
       autoSaveSettings();
-      console.log(`[Keyboard] Toggled ${currentControl.name}: ${currentControl.element.checked}`);
     }
   }
 }
 
 function adjustDurationValue(control, delta) {
-  let currentValue = parseInt(control.valueEl.textContent, 10);
-  let newValue = currentValue + delta;
-  
-  // Clamp to min/max
-  newValue = Math.max(control.min, Math.min(control.max, newValue));
-  
-  console.log(`[Keyboard] Adjusting ${control.name}: current=${currentValue}, delta=${delta}, new=${newValue}, min=${control.min}, max=${control.max}`);
-  
-  if (newValue !== currentValue) {
-    control.valueEl.textContent = newValue.toString().padStart(2, '0');
-    console.log(`[Keyboard] Updated display element textContent to: ${control.valueEl.textContent}`);
-    autoSaveSettings();
-    console.log(`[Keyboard] Called autoSaveSettings() for ${control.name}: ${currentValue} -> ${newValue}`);
-  } else {
-    console.log(`[Keyboard] No change needed for ${control.name} (already at ${currentValue})`);
-  }
+  let v = parseInt(control.valueEl.textContent, 10) + delta;
+  v = Math.max(control.min, Math.min(control.max, v));
+  control.valueEl.textContent = v.toString().padStart(2, '0');
+  autoSaveSettings();
 }
 
 function addFocusToSettingsControl(control) {
-  if (control.type === 'duration') {
-    control.valueEl.classList.add('keyboard-focus');
-  } else if (control.type === 'toggle') {
-    control.element.classList.add('keyboard-focus');
-  }
+  if (control.type === 'duration') control.valueEl.classList.add('keyboard-focus');
+  else if (control.type === 'toggle') control.element.classList.add('keyboard-focus');
 }
 
 function removeFocusFromSettingsControl(control) {
-  if (control.type === 'duration') {
-    control.valueEl.classList.remove('keyboard-focus');
-  } else if (control.type === 'toggle') {
-    control.element.classList.remove('keyboard-focus');
-  }
+  if (control.type === 'duration') control.valueEl.classList.remove('keyboard-focus');
+  else if (control.type === 'toggle') control.element.classList.remove('keyboard-focus');
 }
 
 function activateTimerControl() {
-  const elements = focusState.timerFocusableElements;
-  if (elements.length === 0) return;
-  
-  const currentElement = elements[focusState.timerFocusIndex];
-  console.log(`[Keyboard] Activating timer control: ${currentElement.textContent}`);
-  currentElement.click();
+  const els = focusState.timerFocusableElements;
+  if (!els.length) return;
+  els[focusState.timerFocusIndex].click();
 }
 
 function activateSettingsControl() {
   const controls = focusState.settingsFocusableElements;
-  if (controls.length === 0) return;
-  
-  const currentControl = controls[focusState.settingsFocusIndex];
-  
-  if (currentControl.type === 'toggle') {
-    currentControl.element.checked = !currentControl.element.checked;
+  if (!controls.length) return;
+  const control = controls[focusState.settingsFocusIndex];
+  if (control.type === 'toggle') {
+    control.element.checked = !control.element.checked;
     autoSaveSettings();
-    console.log(`[Keyboard] Activated toggle ${currentControl.name}: ${currentControl.element.checked}`);
   }
 }
 
 function cycleSettingsTabs(reverse = false) {
-  // Remove focus from current control before switching tabs
   const controls = focusState.settingsFocusableElements;
   if (controls.length > 0 && controls[focusState.settingsFocusIndex]) {
     removeFocusFromSettingsControl(controls[focusState.settingsFocusIndex]);
   }
-  
-  // Cycle through tabs
-  if (reverse) {
-    // Shift+Tab: Go backwards
-    focusState.currentTabIndex = (focusState.currentTabIndex - 1 + focusState.tabs.length) % focusState.tabs.length;
-  } else {
-    // Tab: Go forwards
-    focusState.currentTabIndex = (focusState.currentTabIndex + 1) % focusState.tabs.length;
-  }
-  
+  if (reverse) focusState.currentTabIndex = (focusState.currentTabIndex - 1 + focusState.tabs.length) % focusState.tabs.length;
+  else focusState.currentTabIndex = (focusState.currentTabIndex + 1) % focusState.tabs.length;
   const newTab = focusState.tabs[focusState.currentTabIndex];
   switchTab(newTab);
-  
-  // Reset focus index when switching tabs
   focusState.settingsFocusIndex = 0;
-  
-  // Update focusable elements to only show controls for the current tab
-  focusState.settingsFocusableElements = focusState.allSettingsControls.filter(
-    item => item.tab === newTab
-  );
-  
-  console.log(`[Keyboard] ${reverse ? 'Shift+' : ''}Tab pressed - switched to ${newTab} tab (${focusState.settingsFocusableElements.length} controls)`);
-  
-  // Add focus to first control in new tab
-  const newControls = focusState.settingsFocusableElements;
-  if (newControls.length > 0 && newControls[0]) {
-    addFocusToSettingsControl(newControls[0]);
+  focusState.settingsFocusableElements = focusState.allSettingsControls.filter(item => item.tab === newTab);
+  if (focusState.settingsFocusableElements.length > 0) {
+    addFocusToSettingsControl(focusState.settingsFocusableElements[0]);
   }
 }
 
-/* ============================================
-   Start Application
-   ============================================ */
+// ============================================================
+// Utilities
+// ============================================================
 
-// Wait for DOM to be ready
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// Notes: Timer Integration Hooks
+// ============================================================
+
+function onNotesTimerRunning() {
+  if (notesState.activeTaskId || notesState.activeNoteId) {
+    notesState.taskRunSince = Date.now();
+    startLiveTicker();
+  }
+}
+
+function onNotesTimerStopped() {
+  recordActiveTime();
+  stopLiveTicker();
+}
+
+// ============================================================
+// Notes: Live Ticker
+// ============================================================
+
+function formatTaskTime(ms) {
+  if (!ms || ms < 1000) return '';
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec}s`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function startLiveTicker() {
+  if (liveTicker) clearInterval(liveTicker);
+  liveTicker = setInterval(() => {
+    if (state.runState !== 'running' || !notesState.taskRunSince) { stopLiveTicker(); return; }
+    const sessionMs = Date.now() - notesState.taskRunSince;
+    if (notesState.activeTaskId) {
+      let savedMs = 0;
+      for (const note of notesState.notes) {
+        const task = (note.tasks || []).find((t) => t.id === notesState.activeTaskId);
+        if (task) { savedMs = task.timeMs || 0; break; }
+      }
+      const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${notesState.activeTaskId}"]`);
+      if (row) updateTaskTimeDisplay(row, savedMs + sessionMs);
+    } else if (notesState.activeNoteId) {
+      const noteEl = noteEls.notesList && noteEls.notesList.querySelector(`.timeline-note[data-note-id="${notesState.activeNoteId}"]`);
+      if (noteEl) {
+        let savedMs = 0;
+        const note = notesState.notes.find((n) => n.id === notesState.activeNoteId);
+        if (note) savedMs = note.timeMs || 0;
+        const timeSpan = noteEl.querySelector('.note-time');
+        if (timeSpan) timeSpan.textContent = formatTaskTime(savedMs + sessionMs);
+      }
+    }
+  }, 500);
+}
+
+function stopLiveTicker() {
+  if (liveTicker) { clearInterval(liveTicker); liveTicker = null; }
+}
+
+// ============================================================
+// Notes: Add Form
+// ============================================================
+
+function toggleAddForm() {
+  notesState.addFormOpen = !notesState.addFormOpen;
+  if (noteEls.addNoteForm) noteEls.addNoteForm.classList.toggle('is-open', notesState.addFormOpen);
+  if (notesState.addFormOpen && noteEls.noteInput) setTimeout(() => noteEls.noteInput.focus(), 50);
+}
+
+// ============================================================
+// Notes: Load & Render
+// ============================================================
+
+function loadNotes() {
+  Promise.all([
+    ipcRenderer.invoke('notes-list'),
+    ipcRenderer.invoke('project-list'),
+  ]).then(([notesRes, projRes]) => {
+    if (notesRes && notesRes.ok) notesState.notes = Array.isArray(notesRes.notes) ? notesRes.notes : [];
+    if (projRes && projRes.ok) notesState.projects = Array.isArray(projRes.projects) ? projRes.projects : [];
+    renderProjectFilter();
+    renderNotes();
+  }).catch((err) => console.warn('[Notes] load failed:', err));
+}
+
+function renderNotes() {
+  if (!noteEls || !noteEls.notesList) return;
+  clearSelection();
+
+  const visibleNotes = notesState.activeProjectId
+    ? notesState.notes.filter((n) => n.projectId === notesState.activeProjectId)
+    : notesState.notes;
+
+  if (!visibleNotes.length) {
+    noteEls.notesList.innerHTML = '<div class="timeline-empty">No notes yet</div>';
+    return;
+  }
+
+  noteEls.notesList.innerHTML = visibleNotes.map((note) => {
+    const isOpen = notesState.openNoteIds.has(note.id);
+    const noteTotalMs = (note.timeMs || 0) + (note.tasks || []).reduce((s, t) => s + (t.timeMs || 0), 0);
+    const isNoteTimerActive = notesState.activeNoteId === note.id;
+
+    const tasks = (note.tasks || []).map((task) => {
+      const timeLabel = formatTaskTime(task.timeMs);
+      const isActive = notesState.activeTaskId === task.id;
+      const editBtn = `<button class="task-edit-btn" data-task-id="${task.id}" data-note-id="${note.id}" title="Edit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </button>`;
+      const delBtn = `<button class="task-delete-btn" data-task-id="${task.id}" data-note-id="${note.id}">×</button>`;
+
+      if (task.taskType === 'text') {
+        return `
+          <div class="task-row text-type" data-task-id="${task.id}" data-note-id="${note.id}">
+            <span class="task-text">${escapeHtml(task.text)}</span>
+            ${timeLabel ? `<span class="task-time">${timeLabel}</span>` : ''}
+            ${editBtn}${delBtn}
+          </div>`;
+      }
+      return `
+        <label class="task-row ${task.done ? 'done' : ''}${isActive ? ' is-active-task' : ''}" data-task-id="${task.id}" data-note-id="${note.id}">
+          <input type="checkbox" data-task-id="${task.id}" ${task.done ? 'checked' : ''} />
+          <span class="task-text">${escapeHtml(task.text)}</span>
+          ${timeLabel ? `<span class="task-time">${timeLabel}</span>` : ''}
+          ${editBtn}${delBtn}
+        </label>`;
+    }).join('');
+
+    return `
+      <div class="timeline-note${isOpen ? ' is-open' : ''}" data-note-id="${note.id}">
+        <div class="timeline-node">
+          <div class="timeline-dot${noteTotalMs > 0 ? ' has-time' : ''}${isNoteTimerActive ? ' is-timer-active' : ''}" data-note-id="${note.id}">
+          <svg class="dot-ring-svg" viewBox="0 0 14 14" width="14" height="14">${(() => { const c = note.projectColor || '#e8572a'; return `
+            <circle class="dot-track" cx="7" cy="7" r="5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+            <circle class="dot-arc" cx="7" cy="7" r="5" fill="none" stroke="${c}" stroke-width="1.5"
+              stroke-dasharray="31.42" stroke-dashoffset="31.42"
+              stroke-linecap="round" transform="rotate(-90 7 7)"/>
+            <circle class="dot-orb" r="1.2" fill="${c}" cx="7" cy="2"/>`; })()}
+          </svg>
+          <button class="dot-start-btn" data-note-id="${note.id}" title="Start timer">
+            <svg viewBox="0 0 6 8" width="6" height="8" fill="currentColor"><polygon points="0,0 6,4 0,8"/></svg>
+          </button>
+        </div>
+        </div>
+        <div class="timeline-note-card">
+          <div class="timeline-note-header" data-note-id="${note.id}">
+            ${note.projectId ? `<span class="note-project-badge" style="color:${note.projectColor};border-color:${note.projectColor}40;background:${note.projectColor}18" data-note-id="${note.id}" title="${escapeHtml(note.projectName)}">${escapeHtml(note.projectName.length > 10 ? note.projectName.slice(0, 10) + '…' : note.projectName)}</span>` : ''}
+            <span class="note-title">${escapeHtml(note.title)}</span>
+            ${isOpen && noteTotalMs > 0 ? `<span class="note-time">${formatTaskTime(noteTotalMs)}</span>` : ''}
+            <div class="timeline-note-actions">
+              <button class="note-action-btn note-project-btn" data-note-id="${note.id}" title="Assign project">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
+                  <line x1="7" y1="7" x2="7.01" y2="7"/>
+                </svg>
+              </button>
+              <button class="note-action-btn note-edit-btn" data-note-id="${note.id}" title="Edit note title">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </button>
+              <button class="note-action-btn note-delete-btn" data-note-id="${note.id}" title="Delete note">
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                  <line x1="1.5" y1="1.5" x2="8.5" y2="8.5"/>
+                  <line x1="8.5" y1="1.5" x2="1.5" y2="8.5"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="timeline-note-body">
+            <div class="timeline-tasks">${tasks}</div>
+            <div class="task-add-row">
+              <input type="text" data-note-input="${note.id}" data-mode="text" placeholder="+ text  /c checkbox" autocomplete="off" spellcheck="false" />
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Wire events
+  noteEls.notesList.querySelectorAll('.timeline-dot[data-note-id]').forEach((node) => {
+    node.addEventListener('click', () => toggleNote(parseInt(node.dataset.noteId, 10)));
+  });
+  noteEls.notesList.querySelectorAll('.dot-start-btn[data-note-id]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      activateNote(parseInt(btn.dataset.noteId, 10));
+    });
+  });
+  noteEls.notesList.querySelectorAll('.timeline-note-header[data-note-id]').forEach((node) => {
+    node.addEventListener('click', () => toggleNote(parseInt(node.dataset.noteId, 10)));
+  });
+  noteEls.notesList.querySelectorAll('input[type="checkbox"][data-task-id]').forEach((node) => {
+    node.addEventListener('change', onTaskToggle);
+  });
+  noteEls.notesList.querySelectorAll('input[data-note-input]').forEach((node) => {
+    node.addEventListener('keydown', onTaskInputKeydown);
+  });
+  noteEls.notesList.querySelectorAll('.note-delete-btn[data-note-id]').forEach((node) => {
+    node.addEventListener('click', (e) => { e.stopPropagation(); deleteNote(parseInt(node.dataset.noteId, 10)); });
+  });
+  noteEls.notesList.querySelectorAll('.note-edit-btn[data-note-id]').forEach((node) => {
+    node.addEventListener('click', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      const noteId = parseInt(node.dataset.noteId, 10);
+      const header = node.closest('.timeline-note-header');
+      if (!header) return;
+      const titleSpan = header.querySelector('.note-title');
+      if (!titleSpan) return;
+      startInlineEdit(header, titleSpan.textContent, (newTitle) => {
+        ipcRenderer.invoke('note-update', { noteId, title: newTitle }).catch(() => {});
+        const note = notesState.notes.find((n) => n.id === noteId);
+        if (note) note.title = newTitle;
+      });
+    });
+  });
+  noteEls.notesList.querySelectorAll('.task-delete-btn[data-task-id]').forEach((node) => {
+    node.addEventListener('click', (e) => { e.stopPropagation(); deleteTask(parseInt(node.dataset.taskId, 10), parseInt(node.dataset.noteId, 10)); });
+  });
+  noteEls.notesList.querySelectorAll('.task-edit-btn[data-task-id]').forEach((node) => {
+    node.addEventListener('click', (e) => {
+      e.stopPropagation(); e.preventDefault();
+      startTaskEdit(parseInt(node.dataset.taskId, 10), parseInt(node.dataset.noteId, 10));
+    });
+  });
+  noteEls.notesList.querySelectorAll('.note-project-btn[data-note-id]').forEach((node) => {
+    node.addEventListener('click', (e) => { e.stopPropagation(); openProjectPicker(parseInt(node.dataset.noteId, 10), node); });
+  });
+  noteEls.notesList.querySelectorAll('.note-project-badge[data-note-id]').forEach((node) => {
+    node.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = node.closest('.timeline-note')?.querySelector('.note-project-btn');
+      openProjectPicker(parseInt(node.dataset.noteId, 10), btn || node);
+    });
+  });
+
+  // Restore frozen dot progress for notes that were previously active
+  notesState.dotProgress.forEach((progress, noteId) => {
+    const dot = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"] .timeline-dot`);
+    if (!dot) return;
+    dot.classList.add('has-frozen-progress');
+    freezeDotSvg(dot, progress);
+  });
+}
+
+// ============================================================
+// Notes: Toggle / Undo / Edit
+// ============================================================
+
+function toggleNote(noteId) {
+  if (!noteId) return;
+  const el = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"]`);
+  if (!el) return;
+  const isOpen = el.classList.toggle('is-open');
+  if (isOpen) notesState.openNoteIds.add(noteId);
+  else notesState.openNoteIds.delete(noteId);
+}
+
+function pushUndo(entry) {
+  notesState.undoStack.push(entry);
+  if (notesState.undoStack.length > 10) notesState.undoStack.shift();
+}
+
+function undoDelete() {
+  if (!notesState.undoStack.length) return;
+  const entry = notesState.undoStack.pop();
+
+  if (entry.type === 'task') {
+    const note = notesState.notes.find((n) => n.id === entry.noteId);
+    if (!note) return;
+    ipcRenderer.invoke('task-create', { noteId: entry.noteId, text: entry.text, taskType: entry.taskType }).then((res) => {
+      if (!res || !res.ok || !res.task) return;
+      note.tasks = [...(note.tasks || []), { id: res.task.id, text: entry.text, done: false, taskType: entry.taskType, timeMs: 0 }];
+      addTaskToDom(res.task.id, entry.text, entry.taskType, entry.noteId);
+      const noteEl = noteEls.notesList && noteEls.notesList.querySelector(`.timeline-note[data-note-id="${entry.noteId}"]`);
+      if (noteEl && !noteEl.classList.contains('is-open')) toggleNote(entry.noteId);
+    }).catch(() => {});
+  } else if (entry.type === 'note') {
+    ipcRenderer.invoke('note-create', { title: entry.title, bodyMd: entry.bodyMd || '' }).then(async (res) => {
+      if (!res || !res.ok || !res.note) return;
+      const noteId = res.note.id;
+      for (const t of entry.tasks) {
+        await ipcRenderer.invoke('task-create', { noteId, text: t.text, taskType: t.taskType }).catch(() => {});
+      }
+      loadNotes();
+    }).catch(() => {});
+  }
+}
+
+function startTaskEdit(taskId, noteId) {
+  const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${taskId}"]`);
+  if (!row) return;
+  const textSpan = row.querySelector('.task-text');
+  if (!textSpan) return;
+  startInlineEdit(row, textSpan.textContent, (newText) => {
+    ipcRenderer.invoke('task-update', { taskId, text: newText }).catch(() => {});
+    const note = notesState.notes.find((n) => n.id === noteId);
+    const task = note && (note.tasks || []).find((t) => t.id === taskId);
+    if (task) task.text = newText;
+  });
+}
+
+function deleteNote(noteId) {
+  if (!noteId) return;
+  const note = notesState.notes.find((n) => n.id === noteId);
+  if (note) pushUndo({ type: 'note', title: note.title, bodyMd: note.bodyMd || '', tasks: (note.tasks || []).map((t) => ({ text: t.text, taskType: t.taskType })) });
+  ipcRenderer.invoke('note-delete', { noteId }).then((res) => {
+    if (!res || !res.ok) return;
+    notesState.notes = notesState.notes.filter((n) => n.id !== noteId);
+    notesState.openNoteIds.delete(noteId);
+    notesState.dotProgress.delete(noteId);
+    const noteEl = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"]`);
+    if (noteEl) {
+      noteEl.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+      noteEl.style.opacity = '0';
+      noteEl.style.transform = 'translateX(-8px)';
+      setTimeout(() => {
+        noteEl.remove();
+        if (!notesState.notes.length) noteEls.notesList.innerHTML = '<div class="timeline-empty">No notes yet</div>';
+      }, 200);
+    }
+  }).catch((err) => console.warn('[Notes] note-delete failed:', err));
+}
+
+function deleteTask(taskId, noteId) {
+  if (!taskId || !noteId) return;
+  const note = notesState.notes.find((n) => n.id === noteId);
+  const task = note && (note.tasks || []).find((t) => t.id === taskId);
+  if (task) pushUndo({ type: 'task', noteId, text: task.text, taskType: task.taskType });
+  ipcRenderer.invoke('task-delete', { taskId }).then((res) => {
+    if (!res || !res.ok) return;
+    const n = notesState.notes.find((n) => n.id === noteId);
+    if (n) n.tasks = (n.tasks || []).filter((t) => t.id !== taskId);
+    const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${taskId}"]`);
+    if (row) {
+      row.style.transition = 'opacity 0.15s ease';
+      row.style.opacity = '0';
+      setTimeout(() => row.remove(), 150);
+    }
+  }).catch((err) => console.warn('[Notes] task-delete failed:', err));
+}
+
+function focusNewNote() {
+  if (!notesState.addFormOpen) {
+    notesState.addFormOpen = true;
+    if (noteEls.addNoteForm) noteEls.addNoteForm.classList.add('is-open');
+  }
+  if (noteEls.noteInput) setTimeout(() => noteEls.noteInput.focus(), 50);
+}
+
+function createNoteFromInput({ focusTask = false } = {}) {
+  const input = noteEls.noteInput;
+  if (!input) return;
+  const title = input.value.trim();
+  if (!title) return;
+
+  ipcRenderer.invoke('note-create', { title, bodyMd: '' }).then((res) => {
+    if (!res || !res.ok || !res.note) return;
+    input.value = '';
+    notesState.addFormOpen = false;
+    if (noteEls.addNoteForm) noteEls.addNoteForm.classList.remove('is-open');
+    notesState.notes = [{ ...res.note, tasks: [] }, ...notesState.notes];
+    notesState.openNoteIds.add(res.note.id);
+    renderNotes();
+    if (focusTask) {
+      const noteEl = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${res.note.id}"]`);
+      const taskInput = noteEl && noteEl.querySelector('.task-add-row input');
+      if (taskInput) setTimeout(() => taskInput.focus(), 50);
+    }
+  }).catch((err) => console.warn('[Notes] note-create failed:', err));
+}
+
+function addTaskToDom(taskId, text, taskType, noteId) {
+  const noteEl = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"]`);
+  if (!noteEl) return;
+  const tasksContainer = noteEl.querySelector('.timeline-tasks');
+  if (!tasksContainer) return;
+
+  const editBtnHtml = `<button class="task-edit-btn" data-task-id="${taskId}" data-note-id="${noteId}" title="Edit">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  </button>`;
+
+  let el;
+  if (taskType === 'text') {
+    el = document.createElement('div');
+    el.className = 'task-row text-type';
+    el.dataset.taskId = taskId;
+    el.dataset.noteId = noteId;
+    el.innerHTML = `<span class="task-text">${escapeHtml(text)}</span>${editBtnHtml}<button class="task-delete-btn" data-task-id="${taskId}" data-note-id="${noteId}">×</button>`;
+  } else {
+    el = document.createElement('label');
+    el.className = 'task-row';
+    el.dataset.taskId = taskId;
+    el.dataset.noteId = noteId;
+    el.innerHTML = `<input type="checkbox" data-task-id="${taskId}" /><span class="task-text">${escapeHtml(text)}</span>${editBtnHtml}<button class="task-delete-btn" data-task-id="${taskId}" data-note-id="${noteId}">×</button>`;
+    el.querySelector('input[type="checkbox"]').addEventListener('change', onTaskToggle);
+  }
+  el.querySelector('.task-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); startTaskEdit(taskId, noteId); });
+  el.querySelector('.task-delete-btn').addEventListener('click', (e) => { e.stopPropagation(); deleteTask(taskId, noteId); });
+  tasksContainer.appendChild(el);
+}
+
+function onTaskInputKeydown(event) {
+  const input = event.target;
+  const noteId = parseInt(input.dataset.noteInput, 10);
+  if (!noteId) return;
+
+  if (event.ctrlKey && event.key === 't') {
+    event.preventDefault();
+    const current = notesState.taskModes.get(noteId) || 'text';
+    const next = current === 'task' ? 'text' : 'task';
+    notesState.taskModes.set(noteId, next);
+    input.dataset.mode = next;
+    input.placeholder = next === 'task' ? '+ checkbox  (Ctrl+T: text)' : '+ text  /c checkbox';
+    return;
+  }
+
+  if (event.ctrlKey && event.key === 'Enter') {
+    event.preventDefault();
+    let text = input.value.trim();
+    let taskType = notesState.taskModes.get(noteId) || 'text';
+    if (text.startsWith('/c')) { text = text.slice(2).trim(); taskType = 'task'; }
+    const finish = () => toggleNote(noteId);
+    if (!text) { finish(); return; }
+    ipcRenderer.invoke('task-create', { noteId, text, taskType }).then((res) => {
+      if (res && res.ok && res.task) {
+        const note = notesState.notes.find((n) => n.id === noteId);
+        if (note) note.tasks = [...(note.tasks || []), { id: res.task.id, text, done: false, taskType }];
+        input.value = '';
+        addTaskToDom(res.task.id, text, taskType, noteId);
+      }
+      finish();
+    }).catch(finish);
+    return;
+  }
+
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    let text = input.value.trim();
+    if (!text) return;
+    let taskType = notesState.taskModes.get(noteId) || 'text';
+    if (text.startsWith('/c')) { text = text.slice(2).trim(); taskType = 'task'; }
+    if (!text) return;
+    ipcRenderer.invoke('task-create', { noteId, text, taskType }).then((res) => {
+      if (!res || !res.ok || !res.task) return;
+      const note = notesState.notes.find((n) => n.id === noteId);
+      if (note) note.tasks = [...(note.tasks || []), { id: res.task.id, text, done: false, taskType }];
+      input.value = '';
+      addTaskToDom(res.task.id, text, taskType, noteId);
+    }).catch((err) => console.warn('[Notes] task-create failed:', err));
+  }
+}
+
+function onTaskToggle(event) {
+  const taskId = parseInt(event.target.dataset.taskId, 10);
+  const done = !!event.target.checked;
+  if (!taskId) return;
+  ipcRenderer.invoke('task-toggle', { taskId, done }).then((res) => {
+    if (!res || !res.ok) return;
+    for (const note of notesState.notes) {
+      const task = (note.tasks || []).find((t) => t.id === taskId);
+      if (task) task.done = done;
+    }
+    const row = event.target.closest('.task-row');
+    if (row) row.classList.toggle('done', done);
+  }).catch((err) => console.warn('[Notes] task-toggle failed:', err));
+}
+
+// ============================================================
+// Notes: Keyboard Navigation (list)
+// ============================================================
+
+function getNavigableItems() {
+  const items = [];
+  if (!noteEls.notesList) return items;
+  noteEls.notesList.querySelectorAll('.timeline-note').forEach((noteEl) => {
+    const noteId = parseInt(noteEl.dataset.noteId, 10);
+    const headerEl = noteEl.querySelector('.timeline-note-header');
+    if (headerEl) items.push({ el: headerEl, type: 'note', noteId });
+    if (noteEl.classList.contains('is-open')) {
+      noteEl.querySelectorAll('.task-row').forEach((taskEl) => {
+        const taskId = parseInt(taskEl.dataset.taskId, 10);
+        const isTextType = taskEl.classList.contains('text-type');
+        if (taskId) items.push({ el: taskEl, type: 'task', noteId, taskId, isTextType });
+      });
+    }
+  });
+  return items;
+}
+
+function clearSelection() {
+  noteEls.notesList && noteEls.notesList.querySelectorAll('.is-selected').forEach((el) => el.classList.remove('is-selected'));
+  notesState.selected = null;
+}
+
+function selectItem(item) {
+  clearSelection();
+  if (!item) return;
+  notesState.selected = item;
+  item.el.classList.add('is-selected');
+  item.el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+function selectNext() {
+  const items = getNavigableItems();
+  if (!items.length) return;
+  if (!notesState.selected) { selectItem(items[0]); return; }
+  const idx = items.findIndex((i) => i.type === notesState.selected.type && i.noteId === notesState.selected.noteId && i.taskId === notesState.selected.taskId);
+  selectItem(items[Math.min(idx === -1 ? 0 : idx + 1, items.length - 1)]);
+}
+
+function selectPrev() {
+  const items = getNavigableItems();
+  if (!items.length) return;
+  if (!notesState.selected) { selectItem(items[items.length - 1]); return; }
+  const idx = items.findIndex((i) => i.type === notesState.selected.type && i.noteId === notesState.selected.noteId && i.taskId === notesState.selected.taskId);
+  selectItem(items[Math.max(idx <= 0 ? 0 : idx - 1, 0)]);
+}
+
+// ============================================================
+// Notes: Time Tracking
+// ============================================================
+
+function updateTaskTimeDisplay(row, timeMs) {
+  const label = formatTaskTime(timeMs);
+  const existing = row.querySelector('.task-time');
+  if (label) {
+    if (existing) { existing.textContent = label; return; }
+    const span = document.createElement('span');
+    span.className = 'task-time';
+    span.textContent = label;
+    const delBtn = row.querySelector('.task-delete-btn');
+    if (delBtn) row.insertBefore(span, delBtn); else row.appendChild(span);
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
+function updateNoteTimeDisplay(noteId, note) {
+  const noteEl = noteEls.notesList && noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"]`);
+  if (!noteEl) return;
+  const noteTotalMs = (note.timeMs || 0) + (note.tasks || []).reduce((s, t) => s + (t.timeMs || 0), 0);
+  const dot = noteEl.querySelector('.timeline-dot');
+  if (dot) dot.classList.toggle('has-time', noteTotalMs > 0);
+  if (!noteEl.classList.contains('is-open')) return;
+  const header = noteEl.querySelector('.timeline-note-header');
+  if (!header) return;
+  const label = formatTaskTime(noteTotalMs);
+  const existing = header.querySelector('.note-time');
+  if (label) {
+    if (existing) { existing.textContent = label; return; }
+    const span = document.createElement('span');
+    span.className = 'note-time';
+    span.textContent = label;
+    const actions = header.querySelector('.timeline-note-actions');
+    header.insertBefore(span, actions);
+  } else if (existing) {
+    existing.remove();
+  }
+}
+
+function recordActiveTime() {
+  if (!notesState.taskRunSince) return;
+  const ms = Date.now() - notesState.taskRunSince;
+  notesState.taskRunSince = null;
+  if (ms < 1000) return;
+
+  if (notesState.activeNoteId) {
+    const noteId = notesState.activeNoteId;
+    ipcRenderer.invoke('note-add-time', { noteId, ms }).then((res) => {
+      if (!res || !res.ok) return;
+      const note = notesState.notes.find((n) => n.id === noteId);
+      if (note) { note.timeMs = (note.timeMs || 0) + ms; updateNoteTimeDisplay(noteId, note); }
+    }).catch((err) => console.warn('[Notes] note-add-time failed:', err));
+  } else if (notesState.activeTaskId) {
+    const taskId = notesState.activeTaskId;
+    ipcRenderer.invoke('task-add-time', { taskId, ms }).then((res) => {
+      if (!res || !res.ok) return;
+      for (const note of notesState.notes) {
+        const task = (note.tasks || []).find((t) => t.id === taskId);
+        if (task) {
+          task.timeMs = (task.timeMs || 0) + ms;
+          const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${taskId}"]`);
+          if (row) updateTaskTimeDisplay(row, task.timeMs);
+          updateNoteTimeDisplay(note.id, note);
+        }
+      }
+    }).catch((err) => console.warn('[Notes] task-add-time failed:', err));
+  }
+}
+
+function clearActiveIndicators() {
+  if (notesState.activeNoteId) {
+    const dot = noteEls.notesList && noteEls.notesList.querySelector(
+      `.timeline-note[data-note-id="${notesState.activeNoteId}"] .timeline-dot`
+    );
+    if (dot) {
+      const progress = state.millisTotal > 0 ? 1 - (state.millisRemaining / state.millisTotal) : 0;
+      notesState.dotProgress.set(notesState.activeNoteId, progress);
+      dot.classList.remove('is-timer-active');
+      dot.classList.add('has-frozen-progress');
+      freezeDotSvg(dot, progress);
+    }
+  }
+  if (notesState.activeTaskId) {
+    const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${notesState.activeTaskId}"]`);
+    if (row) row.classList.remove('is-active-task');
+  }
+}
+
+function freezeDotSvg(dot, progress) {
+  const arc = dot.querySelector('.dot-arc');
+  const orb = dot.querySelector('.dot-orb');
+  if (!arc || !orb) return;
+  const circumference = 31.42;
+  arc.style.strokeDashoffset = circumference * (1 - progress);
+  const angle = progress * 2 * Math.PI - Math.PI / 2;
+  orb.setAttribute('cx', String(7 + 5 * Math.cos(angle)));
+  orb.setAttribute('cy', String(7 + 5 * Math.sin(angle)));
+}
+
+function activateNote(noteId) {
+  if (notesState.activeNoteId === noteId && state.runState === 'running') return;
+  if (state.runState === 'running' && !state.isInBreakState && state.pomoCurrentTaskStart !== null) {
+    const ms = Date.now() - state.pomoCurrentTaskStart;
+    if (ms > 0) state.pomoTaskLog.push({ color: state.pomoCurrentColor, ms });
+    state.pomoCurrentTaskStart = null;
+  }
+  recordActiveTime();
+  clearActiveIndicators();
+  notesState.activeNoteId = noteId;
+  notesState.activeTaskId = null;
+  notesState.dotProgress.delete(noteId);
+  const dot = noteEls.notesList && noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"] .timeline-dot`);
+  if (dot) {
+    dot.classList.remove('has-frozen-progress');
+    dot.classList.add('is-timer-active');
+  }
+  if (state.runState === 'running') {
+    notesState.taskRunSince = Date.now();
+    startLiveTicker();
+    if (!state.isInBreakState) {
+      state.pomoCurrentColor = getActiveNoteColor();
+      state.pomoCurrentTaskStart = Date.now();
+    }
+  } else {
+    notesState.taskRunSince = null;
+    state.pomoCurrentColor = getActiveNoteColor();
+    if (state.runState === 'idle') handleStartPause();
+  }
+}
+
+function activateTask(taskId, taskEl) {
+  if (notesState.activeTaskId === taskId && state.runState === 'running') return;
+  recordActiveTime();
+  clearActiveIndicators();
+  notesState.activeTaskId = taskId;
+  notesState.activeNoteId = null;
+  if (taskEl) taskEl.classList.add('is-active-task');
+  if (state.runState === 'running') {
+    notesState.taskRunSince = Date.now();
+    startLiveTicker();
+  } else {
+    notesState.taskRunSince = null;
+    if (state.runState === 'idle') handleStartPause();
+  }
+}
+
+function activateSelected() {
+  const sel = notesState.selected;
+  if (!sel) return;
+  if (sel.type === 'note') activateNote(sel.noteId);
+  else if (sel.type === 'task' && !sel.isTextType) activateTask(sel.taskId, sel.el);
+}
+
+function editSelected() {
+  const sel = notesState.selected;
+  if (!sel) return;
+
+  if (sel.type === 'note') {
+    const noteId = sel.noteId;
+    if (!sel.el.closest('.timeline-note').classList.contains('is-open')) toggleNote(noteId);
+    const titleSpan = sel.el.querySelector('.note-title');
+    if (!titleSpan) return;
+    startInlineEdit(sel.el, titleSpan.textContent, (newTitle) => {
+      ipcRenderer.invoke('note-update', { noteId, title: newTitle }).catch(() => {});
+      const note = notesState.notes.find((n) => n.id === noteId);
+      if (note) note.title = newTitle;
+    });
+  } else if (sel.type === 'task') {
+    const { taskId, noteId } = sel;
+    const textSpan = sel.el.querySelector('.task-text');
+    if (!textSpan) return;
+    startInlineEdit(sel.el, textSpan.textContent, (newText) => {
+      ipcRenderer.invoke('task-update', { taskId, text: newText }).catch(() => {});
+      const note = notesState.notes.find((n) => n.id === noteId);
+      const task = (note && note.tasks || []).find((t) => t.id === taskId);
+      if (task) task.text = newText;
+    });
+  }
+}
+
+function startInlineEdit(el, currentText, onCommit) {
+  const textEl = el.querySelector('.task-text, .note-title');
+  if (!textEl) return;
+  const input = document.createElement('input');
+  input.className = 'inline-edit-input';
+  input.type = 'text';
+  input.value = currentText;
+  textEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let committed = false;
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    const newText = input.value.trim() || currentText;
+    const span = document.createElement('span');
+    span.className = textEl.className;
+    span.textContent = newText;
+    input.replaceWith(span);
+    if (newText !== currentText) onCommit(newText, span);
+  };
+
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    else if (e.key === 'Escape') { input.value = currentText; input.blur(); }
+    else if (e.key === 'Tab') {
+      e.preventDefault();
+      commit();
+      const noteId = parseInt(el.closest('.timeline-note') && el.closest('.timeline-note').dataset.noteId, 10);
+      if (noteId) {
+        const noteEl = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"]`);
+        if (noteEl && !noteEl.classList.contains('is-open')) toggleNote(noteId);
+        const taskInput = noteEl && noteEl.querySelector('.task-add-row input');
+        if (taskInput) setTimeout(() => taskInput.focus(), noteEl && !noteEl.classList.contains('is-open') ? 320 : 30);
+      }
+    }
+  });
+}
+
+// ============================================================
+// Notes: Project Management
+// ============================================================
+
+function renderProjectFilter() {
+  const row = noteEls.projectFilterRow;
+  if (!row) return;
+  if (!notesState.projects.length) { row.style.display = 'none'; return; }
+  row.style.display = 'flex';
+  const allActive = notesState.activeProjectId === null;
+  row.innerHTML = [
+    `<button class="proj-filter-pill${allActive ? ' is-active' : ''}" data-pid="all">All</button>`,
+    ...notesState.projects.map((p) => {
+      const active = notesState.activeProjectId === p.id;
+      return `<button class="proj-filter-pill${active ? ' is-active' : ''}" data-pid="${p.id}" style="--proj-color:${p.color}">${escapeHtml(p.name)}</button>`;
+    }),
+  ].join('');
+  row.querySelectorAll('.proj-filter-pill').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const pid = btn.dataset.pid;
+      notesState.activeProjectId = pid === 'all' ? null : parseInt(pid, 10);
+      renderProjectFilter();
+      renderNotes();
+    });
+  });
+}
+
+function openProjectPicker(noteId, anchorEl) {
+  notesState.pickerNoteId = noteId;
+  const picker = noteEls.projectPicker;
+  const list = noteEls.projPickList;
+  const input = noteEls.projPickInput;
+  if (!picker || !list) return;
+
+  const note = notesState.notes.find((n) => n.id === noteId);
+  const currentProjectId = note && note.projectId;
+
+  list.innerHTML = [
+    `<div class="proj-pick-item${!currentProjectId ? ' is-current' : ''}" data-project-id="">None</div>`,
+    ...notesState.projects.map((p) => {
+      const active = currentProjectId === p.id;
+      return `<div class="proj-pick-item${active ? ' is-current' : ''}" data-project-id="${p.id}"><span style="color:${p.color}">●</span>${escapeHtml(p.name)}</div>`;
+    }),
+  ].join('');
+
+  list.querySelectorAll('.proj-pick-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const pid = item.dataset.projectId ? parseInt(item.dataset.projectId, 10) : null;
+      assignNoteProject(noteId, pid);
+      closeProjectPicker();
+    });
+  });
+
+  if (input) input.value = '';
+
+  const rect = anchorEl.getBoundingClientRect();
+  picker.style.top = (rect.bottom + 4) + 'px';
+  picker.style.left = Math.max(4, rect.right - 160) + 'px';
+  picker.classList.add('is-open');
+  if (input) setTimeout(() => input.focus(), 30);
+}
+
+function closeProjectPicker() {
+  notesState.pickerNoteId = null;
+  if (noteEls.projectPicker) noteEls.projectPicker.classList.remove('is-open');
+}
+
+function assignNoteProject(noteId, projectId) {
+  ipcRenderer.invoke('note-set-project', { noteId, projectId: projectId || null }).then((res) => {
+    if (!res || !res.ok) return;
+    const note = notesState.notes.find((n) => n.id === noteId);
+    if (!note) return;
+    const proj = notesState.projects.find((p) => p.id === projectId);
+    note.projectId = proj ? proj.id : null;
+    note.projectName = proj ? proj.name : null;
+    note.projectColor = proj ? proj.color : null;
+    renderProjectFilter();
+    renderNotes();
+  }).catch(() => {});
+}
+
+// ============================================================
+// Startup
+// ============================================================
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
-
-console.log('[Renderer] Script loaded');
-
