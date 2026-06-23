@@ -21,7 +21,7 @@ const state = {
   pomodorosCycleCount: 0,
   pomodoroHistory: [],
   pomoTaskLog: [],
-  pomoCurrentColor: '#e8572a',
+  pomoCurrentColor: '#13c9b5',
   pomoCurrentTaskStart: null,
   currentPomodoroInBreak: -1,
   isInWarmUp: false,
@@ -86,7 +86,7 @@ let noteEls = null;
 
 let liveTicker = null;
 
-const PROJECT_COLORS = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4', '#ec4899', '#e8572a'];
+const PROJECT_COLORS = ['#3b82f6', '#22c55e', '#a855f7', '#f59e0b', '#06b6d4', '#ec4899', '#13c9b5'];
 
 // ============================================================
 // DOM Elements
@@ -344,6 +344,23 @@ function init() {
   const winCloseBtn = document.getElementById('win-close-btn');
   if (winMinBtn)   winMinBtn.addEventListener('click',   () => ipcRenderer.send('window-minimize'));
   if (winCloseBtn) winCloseBtn.addEventListener('click', () => ipcRenderer.send('window-close'));
+
+  // Notes panel collapse toggle
+  const panelDivider = document.getElementById('panel-divider');
+  const appEl = document.getElementById('app');
+  if (panelDivider && appEl) {
+    if (localStorage.getItem('notes-expanded') === 'true') {
+      appEl.classList.add('notes-expanded');
+      const btn = document.getElementById('collapse-toggle');
+      if (btn) btn.title = 'Show timer';
+    }
+    panelDivider.addEventListener('click', () => {
+      const isNowExpanded = appEl.classList.toggle('notes-expanded');
+      localStorage.setItem('notes-expanded', String(isNowExpanded));
+      const btn = document.getElementById('collapse-toggle');
+      if (btn) btn.title = isNowExpanded ? 'Show timer' : 'Expand notes';
+    });
+  }
 
   updateUI();
   loadNotes();
@@ -877,7 +894,6 @@ function updateUI() {
   updateStartPauseButton();
   updateBubbleClass();
   updateMinuteQuarters();
-  updateNoteDotAnimation();
   updatePomoHistory();
 }
 
@@ -886,7 +902,7 @@ function getActiveNoteColor() {
     const note = notesState.notes.find(n => n.id === notesState.activeNoteId);
     if (note && note.projectColor) return note.projectColor;
   }
-  return '#e8572a';
+  return '#13c9b5';
 }
 
 function updatePomoHistory() {
@@ -964,27 +980,6 @@ function updateMinuteQuarters() {
   }
 }
 
-function updateNoteDotAnimation() {
-  if (!notesState.activeNoteId || !noteEls.notesList) return;
-  const dotEl = noteEls.notesList.querySelector(
-    `.timeline-note[data-note-id="${notesState.activeNoteId}"] .timeline-dot`
-  );
-  if (!dotEl) return;
-  const arc = dotEl.querySelector('.dot-arc');
-  const orb = dotEl.querySelector('.dot-orb');
-  if (!arc || !orb) return;
-
-  const progress = state.millisTotal > 0 ? 1 - (state.millisRemaining / state.millisTotal) : 0;
-  const circumference = 31.42; // 2π × 5
-  arc.style.strokeDashoffset = circumference * (1 - progress);
-  const dotColor = state.isInBreakState ? '#14b8a6' : getActiveNoteColor();
-  arc.style.stroke = dotColor;
-
-  const angle = progress * 2 * Math.PI - Math.PI / 2;
-  orb.setAttribute('cx', String(7 + 5 * Math.cos(angle)));
-  orb.setAttribute('cy', String(7 + 5 * Math.sin(angle)));
-  orb.style.fill = dotColor;
-}
 
 function updateTimerDisplay() {
   const totalSeconds = Math.ceil(state.millisRemaining / 1000);
@@ -1022,11 +1017,11 @@ function updateProgressRing() {
   elements.progressCircle.style.strokeDashoffset = circumference * (1 - progress);
 
   if (state.isInBreakState) {
-    elements.progressCircle.style.stroke = '#14b8a6';
+    elements.progressCircle.style.stroke = '#13c9b5';
   } else if (state.phase === 'focus' && state.runState === 'running') {
-    elements.progressCircle.style.stroke = '#ef4444';
+    elements.progressCircle.style.stroke = '#13c9b5';
   } else {
-    elements.progressCircle.style.stroke = 'rgba(255, 255, 255, 0.3)';
+    elements.progressCircle.style.stroke = 'rgba(255, 255, 255, 0.18)';
   }
 }
 
@@ -1077,7 +1072,9 @@ function updatePhaseLabel() {
 }
 
 function updateStartPauseButton() {
-  elements.startPauseBtn.textContent = state.runState === 'running' ? 'PAUSE' : 'START';
+  elements.startPauseBtn.innerHTML = state.runState === 'running'
+    ? `<svg width="13" height="13" viewBox="0 0 13 13" fill="currentColor"><rect x="0" y="0" width="4.5" height="13" rx="1.5"/><rect x="8.5" y="0" width="4.5" height="13" rx="1.5"/></svg>`
+    : `<svg width="12" height="14" viewBox="0 0 12 14" fill="currentColor"><polygon points="0,0 12,7 0,14"/></svg>`;
 }
 
 function updateBubbleClass() {
@@ -1668,13 +1665,6 @@ function renderNotes() {
       <div class="timeline-note${isOpen ? ' is-open' : ''}" data-note-id="${note.id}">
         <div class="timeline-node">
           <div class="timeline-dot${noteTotalMs > 0 ? ' has-time' : ''}${isNoteTimerActive ? ' is-timer-active' : ''}" data-note-id="${note.id}">
-          <svg class="dot-ring-svg" viewBox="0 0 14 14" width="14" height="14">${(() => { const c = note.projectColor || '#e8572a'; return `
-            <circle class="dot-track" cx="7" cy="7" r="5" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
-            <circle class="dot-arc" cx="7" cy="7" r="5" fill="none" stroke="${c}" stroke-width="1.5"
-              stroke-dasharray="31.42" stroke-dashoffset="31.42"
-              stroke-linecap="round" transform="rotate(-90 7 7)"/>
-            <circle class="dot-orb" r="1.2" fill="${c}" cx="7" cy="2"/>`; })()}
-          </svg>
           <button class="dot-start-btn" data-note-id="${note.id}" title="Start timer">
             <svg viewBox="0 0 6 8" width="6" height="8" fill="currentColor"><polygon points="0,0 6,4 0,8"/></svg>
           </button>
@@ -1682,16 +1672,9 @@ function renderNotes() {
         </div>
         <div class="timeline-note-card">
           <div class="timeline-note-header" data-note-id="${note.id}">
-            ${note.projectId ? `<span class="note-project-badge" style="color:${note.projectColor};border-color:${note.projectColor}40;background:${note.projectColor}18" data-note-id="${note.id}" title="${escapeHtml(note.projectName)}">${escapeHtml(note.projectName.length > 10 ? note.projectName.slice(0, 10) + '…' : note.projectName)}</span>` : ''}
             <span class="note-title">${escapeHtml(note.title)}</span>
             ${isOpen && noteTotalMs > 0 ? `<span class="note-time">${formatTaskTime(noteTotalMs)}</span>` : ''}
             <div class="timeline-note-actions">
-              <button class="note-action-btn note-project-btn" data-note-id="${note.id}" title="Assign project">
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/>
-                  <line x1="7" y1="7" x2="7.01" y2="7"/>
-                </svg>
-              </button>
               <button class="note-action-btn note-edit-btn" data-note-id="${note.id}" title="Edit note title">
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
@@ -1708,8 +1691,15 @@ function renderNotes() {
           </div>
           <div class="timeline-note-body">
             <div class="timeline-tasks">${tasks}</div>
-            <div class="task-add-row">
-              <input type="text" data-note-input="${note.id}" data-mode="text" placeholder="+ text  /c checkbox" autocomplete="off" spellcheck="false" />
+            <div class="task-add-area">
+              <div class="task-add-row">
+                <div class="task-add-dot is-task"></div>
+                <input type="text" data-note-input="${note.id}" data-mode="task" placeholder="Add a task…" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="task-add-row">
+                <div class="task-add-dot is-note"></div>
+                <input type="text" data-note-input="${note.id}" data-mode="text" placeholder="Add a note…" autocomplete="off" spellcheck="false" />
+              </div>
             </div>
           </div>
         </div>
@@ -1761,24 +1751,6 @@ function renderNotes() {
       e.stopPropagation(); e.preventDefault();
       startTaskEdit(parseInt(node.dataset.taskId, 10), parseInt(node.dataset.noteId, 10));
     });
-  });
-  noteEls.notesList.querySelectorAll('.note-project-btn[data-note-id]').forEach((node) => {
-    node.addEventListener('click', (e) => { e.stopPropagation(); openProjectPicker(parseInt(node.dataset.noteId, 10), node); });
-  });
-  noteEls.notesList.querySelectorAll('.note-project-badge[data-note-id]').forEach((node) => {
-    node.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const btn = node.closest('.timeline-note')?.querySelector('.note-project-btn');
-      openProjectPicker(parseInt(node.dataset.noteId, 10), btn || node);
-    });
-  });
-
-  // Restore frozen dot progress for notes that were previously active
-  notesState.dotProgress.forEach((progress, noteId) => {
-    const dot = noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"] .timeline-dot`);
-    if (!dot) return;
-    dot.classList.add('has-frozen-progress');
-    freezeDotSvg(dot, progress);
   });
 }
 
@@ -1947,21 +1919,10 @@ function onTaskInputKeydown(event) {
   const noteId = parseInt(input.dataset.noteInput, 10);
   if (!noteId) return;
 
-  if (event.ctrlKey && event.key === 't') {
-    event.preventDefault();
-    const current = notesState.taskModes.get(noteId) || 'text';
-    const next = current === 'task' ? 'text' : 'task';
-    notesState.taskModes.set(noteId, next);
-    input.dataset.mode = next;
-    input.placeholder = next === 'task' ? '+ checkbox  (Ctrl+T: text)' : '+ text  /c checkbox';
-    return;
-  }
-
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault();
     let text = input.value.trim();
-    let taskType = notesState.taskModes.get(noteId) || 'text';
-    if (text.startsWith('/c')) { text = text.slice(2).trim(); taskType = 'task'; }
+    let taskType = input.dataset.mode || 'task';
     const finish = () => toggleNote(noteId);
     if (!text) { finish(); return; }
     ipcRenderer.invoke('task-create', { noteId, text, taskType }).then((res) => {
@@ -1980,9 +1941,7 @@ function onTaskInputKeydown(event) {
     event.preventDefault();
     let text = input.value.trim();
     if (!text) return;
-    let taskType = notesState.taskModes.get(noteId) || 'text';
-    if (text.startsWith('/c')) { text = text.slice(2).trim(); taskType = 'task'; }
-    if (!text) return;
+    let taskType = input.dataset.mode || 'task';
     ipcRenderer.invoke('task-create', { noteId, text, taskType }).then((res) => {
       if (!res || !res.ok || !res.task) return;
       const note = notesState.notes.find((n) => n.id === noteId);
@@ -2136,13 +2095,7 @@ function clearActiveIndicators() {
     const dot = noteEls.notesList && noteEls.notesList.querySelector(
       `.timeline-note[data-note-id="${notesState.activeNoteId}"] .timeline-dot`
     );
-    if (dot) {
-      const progress = state.millisTotal > 0 ? 1 - (state.millisRemaining / state.millisTotal) : 0;
-      notesState.dotProgress.set(notesState.activeNoteId, progress);
-      dot.classList.remove('is-timer-active');
-      dot.classList.add('has-frozen-progress');
-      freezeDotSvg(dot, progress);
-    }
+    if (dot) dot.classList.remove('is-timer-active');
   }
   if (notesState.activeTaskId) {
     const row = noteEls.notesList && noteEls.notesList.querySelector(`.task-row[data-task-id="${notesState.activeTaskId}"]`);
@@ -2150,16 +2103,6 @@ function clearActiveIndicators() {
   }
 }
 
-function freezeDotSvg(dot, progress) {
-  const arc = dot.querySelector('.dot-arc');
-  const orb = dot.querySelector('.dot-orb');
-  if (!arc || !orb) return;
-  const circumference = 31.42;
-  arc.style.strokeDashoffset = circumference * (1 - progress);
-  const angle = progress * 2 * Math.PI - Math.PI / 2;
-  orb.setAttribute('cx', String(7 + 5 * Math.cos(angle)));
-  orb.setAttribute('cy', String(7 + 5 * Math.sin(angle)));
-}
 
 function activateNote(noteId) {
   if (notesState.activeNoteId === noteId && state.runState === 'running') return;
@@ -2172,12 +2115,8 @@ function activateNote(noteId) {
   clearActiveIndicators();
   notesState.activeNoteId = noteId;
   notesState.activeTaskId = null;
-  notesState.dotProgress.delete(noteId);
   const dot = noteEls.notesList && noteEls.notesList.querySelector(`.timeline-note[data-note-id="${noteId}"] .timeline-dot`);
-  if (dot) {
-    dot.classList.remove('has-frozen-progress');
-    dot.classList.add('is-timer-active');
-  }
+  if (dot) dot.classList.add('is-timer-active');
   if (state.runState === 'running') {
     notesState.taskRunSince = Date.now();
     startLiveTicker();
