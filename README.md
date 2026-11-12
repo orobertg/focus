@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/77acd1d0-a385-4c27-b72a-5538890405fa
+
 # Focus
 
 > A lightweight, non-intrusive Pomodoro timer with click-through floating UI — perfect for distraction-free focus work.
